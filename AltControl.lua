@@ -887,13 +887,6 @@ local function initialize_after_login()
             listen_for_commands()
             write_connection_file()
             
-            -- 🎯 Charger AltPetOverlay uniquement sur le personnage MAIN
-            -- TODO: À terme, ce nom sera configurable via la webapp
-            if player.name == 'Dexterbrown' then
-                windower.send_command('lua load AltPetOverlay')
-                windower.add_to_chat(122, '[AltControl] ✅ AltPetOverlay loaded (MAIN character)')
-            end
-            
             return
         end
         coroutine.sleep(0.5)
@@ -904,11 +897,32 @@ end
 -- Quand l'addon est chargé
 windower.register_event('load', function()
     coroutine.schedule(initialize_after_login, 1)
+    
+    -- 🐾 OVERLAY: Charger uniquement sur le personnage principal
+    -- TODO: À terme, configurable via la webapp (page admin)
+    local player = windower.ffxi.get_player()
+    if player and player.name == 'Dexterbrown' then
+        local success = load_tool('AltPetOverlay')
+        if success then
+            print('[AltControl] ✅ Pet Overlay loaded (main character)')
+        else
+            print('[AltControl] ⚠️ Pet Overlay not found in tools/')
+        end
+    end
 end)
 
 -- Quand on se connecte / relog
 windower.register_event('login', function()
     coroutine.schedule(initialize_after_login, 2)
+    
+    -- 🐾 OVERLAY: Charger uniquement sur le personnage principal
+    local player = windower.ffxi.get_player()
+    if player and player.name == 'Dexterbrown' then
+        local success = load_tool('AltPetOverlay')
+        if success then
+            print('[AltControl] ✅ Pet Overlay loaded (main character)')
+        end
+    end
 end)
 
 -- Quand on quitte le jeu ou décharge l'addon
