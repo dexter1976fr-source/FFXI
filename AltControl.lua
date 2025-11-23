@@ -123,9 +123,13 @@ windower.register_event('addon command', function(command, ...)
                 -- 🆕 Connecter AutoEngage avec DistanceFollow
                 autoengage.on_state_change = function(is_active)
                     if distancefollow and distancefollow.enabled then
-                        distancefollow.updateDistances(is_active)
-                        local mode = is_active and "combat" or "follow"
-                        print('[DistanceFollow] Mode switched to: ' .. mode)
+                        distancefollow.auto_engage_active = is_active
+                        print('[DistanceFollow] AutoEngage: ' .. (is_active and 'ON' or 'OFF'))
+                        if is_active then
+                            print('[DistanceFollow] Will stay close (0.5-1) even in combat')
+                        else
+                            print('[DistanceFollow] Will retreat (10-18) if target engages')
+                        end
                     end
                 end
             else

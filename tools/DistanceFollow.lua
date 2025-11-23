@@ -9,6 +9,7 @@ local DistanceFollow = {}
 DistanceFollow.enabled = false
 DistanceFollow.target_name = nil
 DistanceFollow.running = false
+DistanceFollow.auto_engage_active = false  -- État d'AutoEngage
 
 -- Configuration des distances (modifiable dynamiquement)
 DistanceFollow.config = {
@@ -41,15 +42,19 @@ end
 ----------------------------------------------------------
 -- UPDATE DES DISTANCES SELON MODE
 ----------------------------------------------------------
-function DistanceFollow.updateDistances(auto_engage_active)
-    if auto_engage_active then
-        -- Mode combat : distance de mêlée
-        current_min_sq = DistanceFollow.config.combat_min^2
-        current_max_sq = DistanceFollow.config.combat_max^2
-    else
-        -- Mode suivi : distance safe
+function DistanceFollow.updateDistances(auto_engage_active, target_engaged)
+    -- Logique universelle pour tous les jobs:
+    -- Si AutoEngage OFF ET target engagé → Reculer (mode suivi)
+    -- Sinon → Rester proche (mode combat)
+    
+    if not auto_engage_active and target_engaged then
+        -- Mode suivi : le main est en combat mais on ne veut pas engager
         current_min_sq = DistanceFollow.config.follow_min^2
         current_max_sq = DistanceFollow.config.follow_max^2
+    else
+        -- Mode combat : rester proche (par défaut ou si on veut engager)
+        current_min_sq = DistanceFollow.config.combat_min^2
+        current_max_sq = DistanceFollow.config.combat_max^2
     end
 end
 
@@ -70,14 +75,15 @@ function DistanceFollow.start(target, auto_engage_active)
     
     DistanceFollow.target_name = target
     DistanceFollow.enabled = true
-    DistanceFollow.updateDistances(auto_engage_active or false)
+    DistanceFollow.auto_engage_active = auto_engage_active or false
     
-    local mode = auto_engage_active and "combat" or "follow"
-    local min_val = auto_engage_active and DistanceFollow.config.combat_min or DistanceFollow.config.follow_min
-    local max_val = auto_engage_active and DistanceFollow.config.combat_max or DistanceFollow.config.follow_max
+    -- Démarrer toujours en mode combat (0.5-1)
+    current_min_sq = DistanceFollow.config.combat_min^2
+    current_max_sq = DistanceFollow.config.combat_max^2
     
-    print('[DistanceFollow] Following: '..target..' (mode: '..mode..')')
-    print('[DistanceFollow] Distance: '..min_val..' - '..max_val..' yalms')
+    print('[DistanceFollow] Following: '..target..' (AutoEngage: '..(auto_engage_active and 'ON' or 'OFF')..')')
+    print('[DistanceFollow] Distance: '..DistanceFollow.config.combat_min..' - '..DistanceFollow.config.combat_max..' yalms')
+    print('[DistanceFollow] Will retreat to '..DistanceFollow.config.follow_min..'-'..DistanceFollow.config.follow_max..' if target engages and AutoEngage is OFF')
 end
 
 ----------------------------------------------------------
@@ -150,6 +156,12 @@ function DistanceFollow.update()
         end
         return
     end
+    
+    -- 🆕 Détecter si le target est engagé (status == 1)
+    local target_engaged = (target.status == 1)
+    
+    -- 🆕 Ajuster automatiquement les distances selon l'état
+    DistanceFollow.updateDistances(DistanceFollow.auto_engage_active, target_engaged)
     
     local distSq = distanceSquared(target, self)
     local len = math.sqrt(distSq)
