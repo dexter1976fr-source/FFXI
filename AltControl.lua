@@ -69,9 +69,6 @@ function stop_autocast()
     -- Arrêter tout mouvement immédiatement
     windower.ffxi.run(false)
     
-    -- Arrêter MageFastFollow si actif
-    pcall(function() windower.send_command('mff stop') end)
-    
     if load_autocast() then
         autocast.stop()
     end
@@ -197,24 +194,7 @@ windower.register_event('addon command', function(command, ...)
         
         -- Arrêter tout mouvement immédiatement
         windower.ffxi.run(false)
-        
-        -- Arrêter MageFastFollow si actif
-        pcall(function() windower.send_command('mff stop') end)
-        
-        if load_autocast() then
-            local player = windower.ffxi.get_player()
-            if player and player.main_job == 'BRD' then
-                local job_module = autocast.job_modules and autocast.job_modules['BRD']
-                if job_module and job_module.stop_follow then
-                    job_module.stop_follow()
-                    print('[AltControl] ✅ Follow stopped')
-                else
-                    print('[AltControl] ⚠️ BRD module not loaded or no stop_follow function')
-                end
-            else
-                print('[AltControl] ✅ Movement stopped')
-            end
-        end
+        print('[AltControl] ✅ Movement stopped')
     
     elseif command == 'cast' then
         -- Caster un spell/song: //ac cast [spell_name] [target]

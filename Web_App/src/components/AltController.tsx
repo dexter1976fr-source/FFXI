@@ -47,11 +47,6 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
       const result = await backendService.controlSchAutocast(newState ? 'start' : 'stop');
       if (result.success) {
         console.log(`SCH AutoCast ${newState ? 'started' : 'stopped'}`);
-        
-        // Si on désactive, envoyer les commandes de stop
-        if (!newState) {
-          await sendCommand('/console send @sch //ac dfollow stop');
-        }
       }
     } catch (error) {
       console.error(`Error controlling SCH AutoCast:`, error);
