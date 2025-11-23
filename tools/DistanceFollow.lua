@@ -175,18 +175,29 @@ end
 ----------------------------------------------------------
 -- COMMANDES
 ----------------------------------------------------------
-function DistanceFollow.handleCommand(command, ...)
+function DistanceFollow.handleCommand(...)
     local args = {...}
+    
+    if #args == 0 then
+        print('[DistanceFollow] Usage:')
+        print('  //ac dfollow [name] [mode]')
+        print('  //ac dfollow stop')
+        print('  //ac dfollow config [combat_min] [combat_max] [follow_min] [follow_max]')
+        print('Example: //ac dfollow Dexterbrown combat')
+        return
+    end
+    
+    local command = args[1]
     
     if command == 'stop' then
         DistanceFollow.stop()
         
     elseif command == 'config' then
-        if #args >= 4 then
-            local c_min = tonumber(args[1])
-            local c_max = tonumber(args[2])
-            local f_min = tonumber(args[3])
-            local f_max = tonumber(args[4])
+        if #args >= 5 then
+            local c_min = tonumber(args[2])
+            local c_max = tonumber(args[3])
+            local f_min = tonumber(args[4])
+            local f_max = tonumber(args[5])
             DistanceFollow.setDistances(c_min, c_max, f_min, f_max)
         else
             print('[DistanceFollow] Current config:')
@@ -194,17 +205,11 @@ function DistanceFollow.handleCommand(command, ...)
             print('  Follow: '..DistanceFollow.config.follow_min..' - '..DistanceFollow.config.follow_max)
         end
         
-    elseif #args >= 1 then
+    else
+        -- Premier argument = nom de la cible
         local target = args[1]
         local auto_engage = args[2] == 'combat' or args[2] == 'true'
         DistanceFollow.start(target, auto_engage)
-        
-    else
-        print('[DistanceFollow] Usage:')
-        print('  //ac dfollow [name] [mode]')
-        print('  //ac dfollow stop')
-        print('  //ac dfollow config [combat_min] [combat_max] [follow_min] [follow_max]')
-        print('Example: //ac dfollow Dexterbrown combat')
     end
 end
 
