@@ -55,9 +55,19 @@ const Home: React.FC<HomeProps> = ({ onLaunch, onAdmin, onAutoCast }) => {
     try {
       const roles = await backendService.fetchPartyRoles();
       console.log("[Home] Loaded party roles:", roles);
-      if (roles && roles.main_character) {
-        setMainCharacter(roles.main_character);
-        console.log("[Home] Main character set to:", roles.main_character);
+      if (roles) {
+        if (roles.main_character) {
+          setMainCharacter(roles.main_character);
+          console.log("[Home] Main character set to:", roles.main_character);
+        }
+        if (roles.alt1) {
+          setSelectedAlt1(roles.alt1);
+          console.log("[Home] ALT 1 set to:", roles.alt1);
+        }
+        if (roles.alt2) {
+          setSelectedAlt2(roles.alt2);
+          console.log("[Home] ALT 2 set to:", roles.alt2);
+        }
       }
     } catch (error) {
       console.error("[Home] Error loading party roles:", error);
@@ -66,11 +76,29 @@ const Home: React.FC<HomeProps> = ({ onLaunch, onAdmin, onAutoCast }) => {
 
   const handleMainCharacterChange = async (newMain: string) => {
     setMainCharacter(newMain);
+    await saveAllSelections(newMain, selectedAlt1, selectedAlt2);
+  };
+
+  const handleAlt1Change = async (newAlt1: string) => {
+    setSelectedAlt1(newAlt1);
+    await saveAllSelections(mainCharacter, newAlt1, selectedAlt2);
+  };
+
+  const handleAlt2Change = async (newAlt2: string) => {
+    setSelectedAlt2(newAlt2);
+    await saveAllSelections(mainCharacter, selectedAlt1, newAlt2);
+  };
+
+  const saveAllSelections = async (main: string, alt1: string, alt2: string) => {
     try {
-      await backendService.savePartyRoles({ main_character: newMain });
-      console.log("[Home] Main character saved:", newMain);
+      await backendService.savePartyRoles({
+        main_character: main,
+        alt1: alt1,
+        alt2: alt2,
+      });
+      console.log("[Home] Selections saved:", { main, alt1, alt2 });
     } catch (error) {
-      console.error("[Home] Error saving main character:", error);
+      console.error("[Home] Error saving selections:", error);
     }
   };
 
@@ -161,7 +189,7 @@ const Home: React.FC<HomeProps> = ({ onLaunch, onAdmin, onAutoCast }) => {
               </label>
               <select
                 value={selectedAlt1}
-                onChange={(e) => setSelectedAlt1(e.target.value)}
+                onChange={(e) => handleAlt1Change(e.target.value)}
                 className="w-full bg-slate-800 text-white border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-500 text-lg"
               >
                 <option value="">-- Aucun --</option>
@@ -169,7 +197,7 @@ const Home: React.FC<HomeProps> = ({ onLaunch, onAdmin, onAutoCast }) => {
                   <option 
                     key={alt.name} 
                     value={alt.name}
-                    disabled={alt.name === selectedAlt2}
+                    disabled={alt.name === selectedAlt2 || alt.name === mainCharacter}
                   >
                     {alt.name} ({alt.main_job}/{alt.sub_job} Lv.{alt.main_job_level})
                   </option>
@@ -184,7 +212,7 @@ const Home: React.FC<HomeProps> = ({ onLaunch, onAdmin, onAutoCast }) => {
               </label>
               <select
                 value={selectedAlt2}
-                onChange={(e) => setSelectedAlt2(e.target.value)}
+                onChange={(e) => handleAlt2Change(e.target.value)}
                 className="w-full bg-slate-800 text-white border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:border-orange-500 text-lg"
               >
                 <option value="">-- Aucun --</option>
@@ -192,7 +220,7 @@ const Home: React.FC<HomeProps> = ({ onLaunch, onAdmin, onAutoCast }) => {
                   <option 
                     key={alt.name} 
                     value={alt.name}
-                    disabled={alt.name === selectedAlt1}
+                    disabled={alt.name === selectedAlt1 || alt.name === mainCharacter}
                   >
                     {alt.name} ({alt.main_job}/{alt.sub_job} Lv.{alt.main_job_level})
                   </option>

@@ -529,9 +529,9 @@ class BackendService {
   }
 
   /**
-   * Save party roles (main character, etc.)
+   * Save party roles (main character, alt1, alt2)
    */
-  async savePartyRoles(roles: { main_character: string }): Promise<boolean> {
+  async savePartyRoles(roles: { main_character: string; alt1?: string; alt2?: string }): Promise<boolean> {
     try {
       const url = `${BACKEND_CONFIG.apiUrl}/party/roles`;
       console.log(`[BackendService] Saving party roles to: ${url}`, roles);
