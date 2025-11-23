@@ -95,6 +95,18 @@ Exemples de buff IDs pour les songs :
 - Utilise DistanceFollow pour les mouvements
 - Détection du main via party_roles.json
 
+## 💡 Idée future : Auto-start serveur Python
+
+Lua peut lancer un .exe avec `os.execute()` :
+```lua
+os.execute('start "" "python" "C:\\chemin\\vers\\FFXI_ALT_Control.py"')
+```
+
+**À implémenter plus tard :**
+- Core démarre → lance automatiquement le serveur Python
+- Plus besoin de lancer manuellement
+- Tout automatique ! 🚀
+
 ---
 
 **Prêt pour la prochaine session ! 🎵**
