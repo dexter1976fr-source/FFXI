@@ -17,7 +17,6 @@ const Home: React.FC<HomeProps> = ({ onLaunch, onAdmin, onAutoCast }) => {
 
   useEffect(() => {
     loadAvailableAlts();
-    loadPartyRoles();
     
     // S'abonner aux mises à jour des ALTs
     const unsubscribe = backendService.subscribe('all_alts', (alts: PythonAltData[]) => {
@@ -34,6 +33,9 @@ const Home: React.FC<HomeProps> = ({ onLaunch, onAdmin, onAutoCast }) => {
       const alts = await backendService.fetchAllAlts();
       console.log("[Home] Loaded ALTs:", alts);
       setAvailableAlts(alts);
+      
+      // Charger les rôles après avoir chargé les alts
+      await loadPartyRoles();
       
       // Auto-sélectionner les 2 premiers si disponibles
       if (alts.length > 0) {
@@ -53,8 +55,9 @@ const Home: React.FC<HomeProps> = ({ onLaunch, onAdmin, onAutoCast }) => {
     try {
       const roles = await backendService.fetchPartyRoles();
       console.log("[Home] Loaded party roles:", roles);
-      if (roles.main_character) {
+      if (roles && roles.main_character) {
         setMainCharacter(roles.main_character);
+        console.log("[Home] Main character set to:", roles.main_character);
       }
     } catch (error) {
       console.error("[Home] Error loading party roles:", error);
