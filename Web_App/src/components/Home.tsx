@@ -35,27 +35,11 @@ const Home: React.FC<HomeProps> = ({ onLaunch, onAdmin, onAutoCast }) => {
       setAvailableAlts(alts);
       
       // Charger les rôles après avoir chargé les alts
-      await loadPartyRoles();
-      
-      // Auto-sélectionner les 2 premiers si disponibles
-      if (alts.length > 0) {
-        setSelectedAlt1(alts[0].name);
-        if (alts.length > 1) {
-          setSelectedAlt2(alts[1].name);
-        }
-      }
-    } catch (error) {
-      console.error("[Home] Error loading ALTs:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadPartyRoles = async () => {
-    try {
       const roles = await backendService.fetchPartyRoles();
       console.log("[Home] Loaded party roles:", roles);
+      
       if (roles) {
+        // Charger les sélections sauvegardées
         if (roles.main_character) {
           setMainCharacter(roles.main_character);
           console.log("[Home] Main character set to:", roles.main_character);
@@ -68,11 +52,23 @@ const Home: React.FC<HomeProps> = ({ onLaunch, onAdmin, onAutoCast }) => {
           setSelectedAlt2(roles.alt2);
           console.log("[Home] ALT 2 set to:", roles.alt2);
         }
+      } else {
+        // Pas de rôles sauvegardés, auto-sélectionner les 2 premiers
+        if (alts.length > 0) {
+          setSelectedAlt1(alts[0].name);
+          if (alts.length > 1) {
+            setSelectedAlt2(alts[1].name);
+          }
+        }
       }
     } catch (error) {
-      console.error("[Home] Error loading party roles:", error);
+      console.error("[Home] Error loading ALTs:", error);
+    } finally {
+      setLoading(false);
     }
   };
+
+
 
   const handleMainCharacterChange = async (newMain: string) => {
     setMainCharacter(newMain);
