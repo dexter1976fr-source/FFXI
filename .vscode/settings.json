@@ -1,0 +1,8 @@
+{
+    "kiroAgent.configureMCP": "Enabled",
+    "kiroAgent.trustedCommands": [
+        "npm run build",
+        "npm run",
+        "npm"
+    ]
+}

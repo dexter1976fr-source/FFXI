@@ -1,0 +1,14 @@
+{
+  "BRD": {
+    "healerTarget": "Deedeebrown",
+    "meleeTarget": "Dexterbrown",
+    "mageSongs": [
+      "Mage's Ballad II",
+      "Army's Paeon V"
+    ],
+    "meleeSongs": [
+      "Valor Minuet V",
+      "Valor Minuet IV"
+    ]
+  }
+}

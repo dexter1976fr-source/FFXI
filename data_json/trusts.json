@@ -1,0 +1,38 @@
+{
+  "tanks": [
+    "Valaineral", "Trion", "Curilla", "Excenmille", "Ayame", "Naji",
+    "Gessho", "Gadalar", "Rainemard", "Ingrid", "Lehko Habhoka",
+    "Nashmeira", "Zazarg", "Ygnas", "Balamor", "August", "Rosulatia",
+    "Amchuchu", "Sakura", "Lhu Mhakaracca"
+  ],
+  "healers": [
+    "Kupipi", "Apururu", "Yoran-Oran", "Cherukiki", "Joachim",
+    "Koru-Moru", "Ajido-Marujido", "Karaha-Baruha", "Romaa Mihgo",
+    "Star Sibyl", "Ulmia", "Qultada", "Adelheid", "Sylvie",
+    "Monberaux", "Mildaurion"
+  ],
+  "melee": [
+    "Shantotto", "Prishe", "Lion", "Zeid", "Gilgamesh", "Arciela",
+    "Iroha", "Semih Lafihna", "Tenzen", "Mihli Aliapoh", "Volker",
+    "Shikaree Z", "Ferreous Coffin", "King of Hearts", "Kukki-Chebukki",
+    "Mayakov", "Moogle", "Fablinix", "Noillurie", "Brygid",
+    "Kayeel-Payeel", "Robel-Akbel", "Kuyin Hathdenna", "Mumor",
+    "Uka Totlihn", "Pieuje", "I. Shield", "D. Shantotto", "Karaha-Baruha",
+    "Leonoyne", "Maximilian", "Kayeel-Payeel", "Luzaf", "Najelith",
+    "Ovjang", "Mnejing", "Zazarg", "Aldo", "Naja Salaheem", "Nanaa Mihgo",
+    "Kukki-Chebukki", "Excenmille", "Ayame", "Naji", "Shantotto II",
+    "Rahal", "Koru-Moru", "Ferreous Coffin", "Lilisette", "Lehko Habhoka",
+    "Nashmeira", "Zazarg"
+  ],
+  "mages": [
+    "Shantotto", "Shantotto II", "Karaha-Baruha", "Ajido-Marujido",
+    "Lehko Habhoka", "Kupipi", "Cherukiki", "Yoran-Oran", "Joachim",
+    "Koru-Moru", "Romaa Mihgo", "Star Sibyl", "Ulmia", "Qultada",
+    "Adelheid", "Sylvie", "Monberaux", "Mildaurion", "Arciela",
+    "Iroha", "Semih Lafihna"
+  ],
+  "support": [
+    "Ulmia", "Qultada", "Joachim", "Koru-Moru", "Sylvie", "Arciela",
+    "Iroha", "Apururu", "Moogle", "Fablinix"
+  ]
+}

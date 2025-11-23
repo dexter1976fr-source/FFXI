@@ -1,0 +1,39 @@
+{
+  "Debybrown_DRG_DNC": {
+    "alt_name": "Debybrown",
+    "main_job": "DRG",
+    "sub_job": "DNC",
+    "selected_spells": [
+      "Drain Samba II",
+      "Haste Samba",
+      "Aspir Samba",
+      "Divine Waltz",
+      "Curing Waltz III",
+      "Curing Waltz II"
+    ],
+    "selected_job_abilities": [
+      "Jump",
+      "Ancient Circle",
+      "High Jump",
+      "Super Jump",
+      "Spirit Link",
+      "Call Wyvern",
+      "Spirit Surge",
+      "Spirit Jump",
+      "Dragon Breaker",
+      "Fly High",
+      "Soul Jump",
+      "Trance",
+      "Desperate Flourish",
+      "Reverse Flourish",
+      "Violent Flourish"
+    ],
+    "selected_weapon_skills": [
+      "Stardiver",
+      "Penta Thrust",
+      "Diarmuid"
+    ],
+    "selected_macros": [],
+    "last_updated": 1763482495181
+  }
+}

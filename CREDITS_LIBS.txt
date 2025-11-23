@@ -1,0 +1,11 @@
+=== THIRD-PARTY ADDONS ===
+
+FastFollow.lua
+- Author: DiscipleOfEris
+- Version: 1.2.1
+- License: Unknown (included with permission)
+- Purpose: Automatic follow with distance management
+- Original: https://github.com/Windower/Lua/tree/live/addons/FastFollow
+
+This addon is used by AltControl to manage BRD positioning during AutoCast cycles.
+All credits go to the original author.
