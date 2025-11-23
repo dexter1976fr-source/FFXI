@@ -10,12 +10,14 @@ interface HomeProps {
 
 const Home: React.FC<HomeProps> = ({ onLaunch, onAdmin, onAutoCast }) => {
   const [availableAlts, setAvailableAlts] = useState<PythonAltData[]>([]);
+  const [mainCharacter, setMainCharacter] = useState<string>("");
   const [selectedAlt1, setSelectedAlt1] = useState<string>("");
   const [selectedAlt2, setSelectedAlt2] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadAvailableAlts();
+    loadPartyRoles();
     
     // S'abonner aux mises à jour des ALTs
     const unsubscribe = backendService.subscribe('all_alts', (alts: PythonAltData[]) => {
@@ -44,6 +46,28 @@ const Home: React.FC<HomeProps> = ({ onLaunch, onAdmin, onAutoCast }) => {
       console.error("[Home] Error loading ALTs:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPartyRoles = async () => {
+    try {
+      const roles = await backendService.fetchPartyRoles();
+      console.log("[Home] Loaded party roles:", roles);
+      if (roles.main_character) {
+        setMainCharacter(roles.main_character);
+      }
+    } catch (error) {
+      console.error("[Home] Error loading party roles:", error);
+    }
+  };
+
+  const handleMainCharacterChange = async (newMain: string) => {
+    setMainCharacter(newMain);
+    try {
+      await backendService.savePartyRoles({ main_character: newMain });
+      console.log("[Home] Main character saved:", newMain);
+    } catch (error) {
+      console.error("[Home] Error saving main character:", error);
     }
   };
 
@@ -103,6 +127,29 @@ const Home: React.FC<HomeProps> = ({ onLaunch, onAdmin, onAutoCast }) => {
             <h2 className="text-xl font-bold text-white mb-4">
               Sélectionner les ALTs à contrôler
             </h2>
+            
+            {/* Main Character Selection */}
+            <div className="mb-6 p-4 bg-gradient-to-r from-yellow-900/30 to-amber-900/30 rounded-lg border border-yellow-600/50">
+              <label className="block text-yellow-400 font-bold mb-2 text-left flex items-center gap-2">
+                <span className="text-2xl">👑</span>
+                Main Character (Leader)
+              </label>
+              <select
+                value={mainCharacter}
+                onChange={(e) => handleMainCharacterChange(e.target.value)}
+                className="w-full bg-slate-800 text-white border border-yellow-600 rounded-lg px-4 py-3 focus:outline-none focus:border-yellow-500 text-lg font-semibold"
+              >
+                <option value="">-- Sélectionner le Main --</option>
+                {availableAlts.map((alt) => (
+                  <option key={alt.name} value={alt.name}>
+                    {alt.name} ({alt.main_job}/{alt.sub_job} Lv.{alt.main_job_level})
+                  </option>
+                ))}
+              </select>
+              <p className="text-yellow-300/70 text-sm mt-2 text-left">
+                Le Main Character déclenche les cycles automatiques (BRD, etc.)
+              </p>
+            </div>
             
             {/* ALT 1 Selection */}
             <div className="mb-4">

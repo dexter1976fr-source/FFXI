@@ -681,6 +681,53 @@ def reload_data():
             "error": str(e)
         }), 500
 
+@app.route('/party/roles', methods=['GET'])
+def get_party_roles():
+    """Récupère les rôles de la party (main character, etc.)"""
+    try:
+        roles_file = os.path.join(DIR_JSON, "party_roles.json")
+        
+        if not os.path.exists(roles_file):
+            return jsonify({"main_character": ""})
+        
+        with open(roles_file, 'r', encoding='utf-8') as f:
+            roles = json.load(f)
+        
+        return jsonify(roles)
+    except Exception as e:
+        print(f"[ERROR] get_party_roles: {e}")
+        return jsonify({"main_character": ""})
+
+@app.route('/party/roles', methods=['POST'])
+def save_party_roles():
+    """Sauvegarde les rôles de la party (main character, etc.)"""
+    try:
+        roles = request.json
+        
+        if not roles or 'main_character' not in roles:
+            return jsonify({
+                "success": False,
+                "error": "Invalid roles data"
+            }), 400
+        
+        roles_file = os.path.join(DIR_JSON, "party_roles.json")
+        
+        with open(roles_file, 'w', encoding='utf-8') as f:
+            json.dump(roles, f, indent=2, ensure_ascii=False)
+        
+        print(f"[PARTY ROLES] Saved: {roles}")
+        
+        return jsonify({
+            "success": True,
+            "message": "Party roles saved successfully"
+        })
+    except Exception as e:
+        print(f"[ERROR] save_party_roles: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
 @app.route('/config/<alt_name>/<main_job>/<sub_job>', methods=['GET'])
 def get_config(alt_name, main_job, sub_job):
     """Récupère la configuration d'un ALT depuis le serveur"""

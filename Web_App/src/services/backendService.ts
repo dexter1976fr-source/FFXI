@@ -504,6 +504,58 @@ class BackendService {
       return [];
     }
   }
+
+  /**
+   * Fetch party roles (main character, etc.)
+   */
+  async fetchPartyRoles(): Promise<{ main_character: string }> {
+    try {
+      const url = `${BACKEND_CONFIG.apiUrl}/party/roles`;
+      console.log(`[BackendService] Fetching party roles from: ${url}`);
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log("[BackendService] Received party roles:", data);
+      return data;
+    } catch (error) {
+      console.error("[BackendService] Error fetching party roles:", error);
+      return { main_character: "" };
+    }
+  }
+
+  /**
+   * Save party roles (main character, etc.)
+   */
+  async savePartyRoles(roles: { main_character: string }): Promise<boolean> {
+    try {
+      const url = `${BACKEND_CONFIG.apiUrl}/party/roles`;
+      console.log(`[BackendService] Saving party roles to: ${url}`, roles);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(roles),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log("[BackendService] Party roles saved:", data);
+      return data.success || false;
+    } catch (error) {
+      console.error("[BackendService] Error saving party roles:", error);
+      return false;
+    }
+  }
 }
 
 // Export singleton instance
