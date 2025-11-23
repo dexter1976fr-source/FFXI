@@ -913,6 +913,16 @@ def send_reload_command_to_all_alts_with_file_scan():
                 print(f"[RELOAD] Command sent to {alt['name']} ({ip}:{port})")
         except Exception as e:
             print(f"[ERROR] Failed to reload {alt['name']} ({ip}:{port}): {e}")
+    
+    # 🆕 Si le serveur est actif, recharger Extended après 2 secondes
+    if servers_running:
+        import time
+        time.sleep(2)
+        print("[RELOAD] 🚀 Reloading Extended features...")
+        for alt_name in list(alts.keys()):
+            send_command_to_alt(alt_name, '//ac load_extended')
+            time.sleep(0.1)
+        print("[RELOAD] ✅ Extended reloaded on all alts")
 
 # 🆕 File d'attente des casts en attente (par alt)
 pending_casts = {}
@@ -1052,9 +1062,24 @@ class ServerControlGUI:
             sch_thread.start()
             
             servers_running = True
-            self.root.after(1500, send_reload_command_to_all_alts_with_file_scan)
+            
+            # 🆕 Charger Extended après le reload
+            def load_extended_after_reload():
+                send_reload_command_to_all_alts_with_file_scan()
+                # Attendre 2 secondes que le reload se termine
+                self.root.after(2000, self.load_extended_on_all_alts)
+            
+            self.root.after(1500, load_extended_after_reload)
         else:
             print("[INFO] Stopping servers...")
+            
+            # 🆕 Décharger Extended avant d'arrêter
+            self.unload_extended_on_all_alts()
+            
+            # Attendre 1 seconde que le unload se termine
+            import time
+            time.sleep(1)
+            
             self.stop_event_lua.set()
             self.stop_event_flask.set()
             self.lua_status.set("OFF")
@@ -1062,6 +1087,24 @@ class ServerControlGUI:
             self.flask_status.set("OFF")
             self.label_flask.config(foreground="red")
             servers_running = False
+    
+    def load_extended_on_all_alts(self):
+        """Charge Extended sur tous les alts connectés"""
+        print("[INFO] 🚀 Loading Extended features on all alts...")
+        for alt_name in list(alts.keys()):
+            send_command_to_alt(alt_name, '//ac load_extended')
+            import time
+            time.sleep(0.1)  # Petit délai entre chaque alt
+        print("[INFO] ✅ Extended loaded on all alts")
+    
+    def unload_extended_on_all_alts(self):
+        """Décharge Extended sur tous les alts connectés"""
+        print("[INFO] 🛑 Unloading Extended features on all alts...")
+        for alt_name in list(alts.keys()):
+            send_command_to_alt(alt_name, '//ac unload_extended')
+            import time
+            time.sleep(0.1)  # Petit délai entre chaque alt
+        print("[INFO] ✅ Extended unloaded on all alts")
 
     def change_data_location(self):
         result = filedialog.askdirectory(title="Select ALT data folder")
