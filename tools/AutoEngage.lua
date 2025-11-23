@@ -12,6 +12,7 @@ AutoEngage.last_check = 0
 AutoEngage.check_interval = 1.0  -- Vérifier toutes les 1 seconde
 AutoEngage.last_target_id = nil
 AutoEngage.pending_commands = {}  -- File d'attente de commandes
+AutoEngage.on_state_change = nil  -- Callback pour notifier les changements d'état
 
 -- Démarrer l'auto-engage
 function AutoEngage.start(target_name)
@@ -25,6 +26,12 @@ function AutoEngage.start(target_name)
     else
         print('[AutoEngage] ✅ Started - Assisting <p1>')
     end
+    
+    -- Notifier le changement d'état
+    if AutoEngage.on_state_change then
+        AutoEngage.on_state_change(true)
+    end
+    
     return true
 end
 
@@ -34,6 +41,11 @@ function AutoEngage.stop()
     AutoEngage.target_name = nil
     AutoEngage.last_target_id = nil
     print('[AutoEngage] ⏹️ Stopped')
+    
+    -- Notifier le changement d'état
+    if AutoEngage.on_state_change then
+        AutoEngage.on_state_change(false)
+    end
 end
 
 -- Vérifier si actif

@@ -20,6 +20,7 @@ local base_port = 5007
 
 local autocast = nil
 local autoengage = nil
+local distancefollow = nil
 
 function load_tool(tool_name)
     local success, module = pcall(require, 'tools/' .. tool_name)
@@ -118,6 +119,15 @@ windower.register_event('addon command', function(command, ...)
             autoengage = load_tool('AutoEngage')
             if autoengage then
                 print('[AltControl] ✅ AutoEngage tool loaded successfully')
+                
+                -- 🆕 Connecter AutoEngage avec DistanceFollow
+                autoengage.on_state_change = function(is_active)
+                    if distancefollow and distancefollow.enabled then
+                        distancefollow.updateDistances(is_active)
+                        local mode = is_active and "combat" or "follow"
+                        print('[DistanceFollow] Mode switched to: ' .. mode)
+                    end
+                end
             else
                 print('[AltControl] ❌ Failed to load AutoEngage tool')
                 return
@@ -126,6 +136,23 @@ windower.register_event('addon command', function(command, ...)
         if autoengage then
             local args = {...}
             autoengage.handle_command(table.unpack(args))
+        end
+        
+    elseif command == 'dfollow' then
+        -- Commandes DistanceFollow: //ac dfollow [target] [mode]
+        if not distancefollow then
+            print('[AltControl] Loading DistanceFollow tool...')
+            distancefollow = load_tool('DistanceFollow')
+            if distancefollow then
+                print('[AltControl] ✅ DistanceFollow tool loaded successfully')
+            else
+                print('[AltControl] ❌ Failed to load DistanceFollow tool')
+                return
+            end
+        end
+        if distancefollow then
+            local args = {...}
+            distancefollow.handleCommand(table.unpack(args))
         end
         
     elseif command == 'follow' then
@@ -1056,6 +1083,17 @@ coroutine.schedule(function()
         coroutine.sleep(0.1) -- 10 fois par seconde pour AutoCast
     end
 end, 0)
+
+----------------------------------------------------------
+-- 🔹 PRERENDER (appelé chaque frame pour DistanceFollow)
+----------------------------------------------------------
+
+windower.register_event('prerender', function()
+    -- DistanceFollow a besoin d'être appelé chaque frame pour un mouvement fluide
+    if distancefollow and distancefollow.enabled then
+        distancefollow.update()
+    end
+end)
 
 ----------------------------------------------------------
 -- 🔹 ÉVÉNEMENTS POUR AUTOCAST
