@@ -857,13 +857,18 @@ end
 -- 🔹 RÉCEPTION DE COMMANDES TCP (depuis l'app externe)
 ----------------------------------------------------------
 
+local tcp_server = nil
+local tcp_running = false
+
 function listen_for_commands()
     local listen_port = get_auto_port()
-    local server = assert(socket.bind("127.0.0.1", listen_port))
-    server:settimeout(0)
+    tcp_server = assert(socket.bind("127.0.0.1", listen_port))
+    tcp_server:settimeout(0)
+    tcp_running = true
+    
     coroutine.schedule(function()
-        while true do
-            local client = server:accept()
+        while tcp_running do
+            local client = tcp_server:accept()
             if client then
                 client:settimeout(1)
                 local command = client:receive("*l")
@@ -874,7 +879,21 @@ function listen_for_commands()
             end
             coroutine.sleep(0.5)
         end
+        
+        -- Fermer le serveur proprement
+        if tcp_server then
+            tcp_server:close()
+            tcp_server = nil
+        end
     end, 0)
+end
+
+function stop_listening()
+    tcp_running = false
+    if tcp_server then
+        tcp_server:close()
+        tcp_server = nil
+    end
 end
 
 
@@ -1018,6 +1037,10 @@ end)
 function Extended.initialize()
     print('[Extended] 🚀 Initializing features...')
     
+    -- 🆕 Démarrer l'écoute TCP
+    listen_for_commands()
+    print('[Extended] ✅ TCP listener started on port ' .. get_auto_port())
+    
     -- Démarrer la boucle principale d'envoi de données
     coroutine.schedule(function()
         local debug_counter = 0
@@ -1064,6 +1087,10 @@ end
 
 function Extended.shutdown()
     print('[Extended] 🛑 Shutting down features...')
+    
+    -- 🆕 Arrêter l'écoute TCP
+    stop_listening()
+    print('[Extended] ✅ TCP listener stopped')
     
     -- Arrêter tout mouvement
     windower.ffxi.run(false)

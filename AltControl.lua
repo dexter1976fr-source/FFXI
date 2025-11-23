@@ -56,11 +56,13 @@ function write_connection_file()
     end
 end
 
--- Écoute les commandes TCP du serveur Python
-function listen_for_commands()
+-- 🆕 Écoute MINIMALE pour recevoir la commande load_extended
+-- Après chargement d'Extended, ce socket devient inutile (Extended a le sien)
+function listen_for_load_command()
     local listen_port = get_auto_port()
     local server = assert(socket.bind("127.0.0.1", listen_port))
     server:settimeout(0)
+    
     coroutine.schedule(function()
         while true do
             local client = server:accept()
@@ -72,7 +74,7 @@ function listen_for_commands()
                 end
                 client:close()
             end
-            coroutine.sleep(0.5)
+            coroutine.sleep(2)  -- Vérifier toutes les 2 secondes (pas besoin de plus)
         end
     end, 0)
 end
@@ -84,7 +86,17 @@ end
 windower.register_event('addon command', function(command, ...)
     command = command and command:lower() or nil
     
-    if command == 'load_extended' then
+    if command == 'allon' then
+        -- 🆕 Charger Extended sur TOUS les alts
+        print('[AltControl] 🚀 Loading Extended on all alts...')
+        windower.send_command('input /console send @all input //ac load_extended')
+        
+    elseif command == 'alloff' then
+        -- 🆕 Décharger Extended sur TOUS les alts
+        print('[AltControl] 🛑 Unloading Extended on all alts...')
+        windower.send_command('input /console send @all input //ac unload_extended')
+        
+    elseif command == 'load_extended' then
         -- Charger le module Extended
         if not extended_loaded then
             print('[AltControl] Loading Extended features...')
@@ -150,10 +162,26 @@ local function initialize_after_login()
         local player = windower.ffxi.get_player()
         if player and player.name then
             write_connection_file()
-            listen_for_commands()
             print('[AltControl] ✅ Core initialized for ' .. player.name)
             print('[AltControl] Port: ' .. get_auto_port())
-            print('[AltControl] Load Extended with: //ac load_extended')
+            
+            -- 🆕 Charger Extended automatiquement au démarrage
+            if not extended_loaded then
+                print('[AltControl] 🚀 Auto-loading Extended features...')
+                local success, module = pcall(require, 'AltControlExtended')
+                if success then
+                    extended_module = module
+                    extended_module.initialize()
+                    extended_loaded = true
+                    print('[AltControl] ✅ Extended features loaded')
+                else
+                    print('[AltControl] ❌ Failed to load Extended:', module)
+                end
+            end
+            
+            print('[AltControl] 💡 Quick commands:')
+            print('[AltControl]   //ac allon  = Load Extended on ALL alts')
+            print('[AltControl]   //ac alloff = Unload Extended on ALL alts')
             return
         end
         coroutine.sleep(0.5)
