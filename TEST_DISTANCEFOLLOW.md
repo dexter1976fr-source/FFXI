@@ -16,9 +16,9 @@ Valider l'intégration de DistanceFollow avec AutoEngage et la webapp.
 3. Le bouton doit passer à **"Follow: ON"**
 
 ### Résultat attendu
-- Console Windower : `[DistanceFollow] Following: <p1> (mode: follow)`
-- Console Windower : `[DistanceFollow] Distance: 13 - 18 yalms`
-- Le personnage suit le leader à distance (13-18 yalms)
+- Console Windower : `[DistanceFollow] Following: [nom_leader] (mode: follow)`
+- Console Windower : `[DistanceFollow] Distance: 10 - 18 yalms`
+- Le personnage suit le leader à distance (10-18 yalms)
 
 ### Validation
 - [ ] Le personnage suit le leader

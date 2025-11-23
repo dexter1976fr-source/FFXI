@@ -18,9 +18,9 @@ DistanceFollow est un système de suivi intelligent qui ajuste automatiquement l
 - Permet de rester à portée de mêlée pour attaquer
 
 ### Mode Suivi (AutoEngage OFF)
-- **Distance min:** 13 yalms
+- **Distance min:** 10 yalms
 - **Distance max:** 18 yalms
-- Distance de sécurité pour suivre sans être trop proche
+- Distance de sécurité pour suivre avec plus de manœuvre
 
 ## Commandes
 
@@ -31,7 +31,8 @@ DistanceFollow est un système de suivi intelligent qui ajuste automatiquement l
 
 **Exemples :**
 ```
-//ac dfollow Dexterbrown          # Mode suivi (13-18 yalms)
+//ac dfollow Dexterbrown          # Mode suivi (10-18 yalms)
+//ac dfollow <p1>                  # Suivre le leader (10-18 yalms)
 //ac dfollow Dexterbrown combat   # Mode combat (0.5-1 yalm)
 ```
 
@@ -74,7 +75,7 @@ Le système change automatiquement de mode quand AutoEngage est activé/désacti
    ```
    //ac autoengage stop
    ```
-   → DistanceFollow repasse en mode suivi (13-18 yalms)
+   → DistanceFollow repasse en mode suivi (10-18 yalms)
 
 ## Cas d'usage : SMN
 
@@ -96,7 +97,7 @@ Le système change automatiquement de mode quand AutoEngage est activé/désacti
    ```
 
 3. Le SMN :
-   - Suit le tank à 13-18 yalms (mode suivi)
+   - Suit le tank à 10-18 yalms (mode suivi)
    - Quand AutoEngage engage, passe à 0.5-1 yalm (mode combat)
    - Attaque la cible
    - Reprend automatiquement la bonne distance après le combat
@@ -107,7 +108,7 @@ Le système change automatiquement de mode quand AutoEngage est activé/désacti
 
 **Mêlée (MNK, WAR, etc.) :**
 ```
-//ac dfollow config 0.5 1.0 13 18
+//ac dfollow config 0.5 1.0 10 18
 ```
 
 **Ranged (RNG, COR) :**

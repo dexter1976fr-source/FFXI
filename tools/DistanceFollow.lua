@@ -17,7 +17,7 @@ DistanceFollow.config = {
     combat_max = 1.0,
     
     -- Mode suivi (AutoEngage OFF)
-    follow_min = 13,
+    follow_min = 10,
     follow_max = 18,
     
     -- Distance max pour éviter de courir trop loin
@@ -57,6 +57,17 @@ end
 -- DÉMARRER LE SUIVI
 ----------------------------------------------------------
 function DistanceFollow.start(target, auto_engage_active)
+    -- Convertir <p1> en nom réel
+    if target == '<p1>' then
+        local party = windower.ffxi.get_party()
+        if party and party.p1 and party.p1.name then
+            target = party.p1.name
+        else
+            print('[DistanceFollow] ❌ Cannot find party leader')
+            return
+        end
+    end
+    
     DistanceFollow.target_name = target
     DistanceFollow.enabled = true
     DistanceFollow.updateDistances(auto_engage_active or false)
