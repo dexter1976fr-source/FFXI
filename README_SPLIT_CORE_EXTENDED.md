@@ -193,7 +193,27 @@ Ces commandes utilisent `/console send @all` pour affecter tous les alts simulta
 
 Extended se charge **automatiquement** quand le Core démarre. Tu n'as rien à faire.
 
-Si tu ne veux pas qu'Extended se charge automatiquement, tu peux modifier `AltControl.lua` et commenter la section d'auto-load.
+**Pour désactiver l'auto-load :**
+
+Si tu préfères que Extended ne se charge PAS automatiquement (Core ultra léger dès le démarrage), édite `AltControl.lua` et commente cette section dans `initialize_after_login()` :
+
+```lua
+-- 🆕 Charger Extended automatiquement au démarrage
+-- if not extended_loaded then
+--     print('[AltControl] 🚀 Auto-loading Extended features...')
+--     local success, module = pcall(require, 'AltControlExtended')
+--     if success then
+--         extended_module = module
+--         extended_module.initialize()
+--         extended_loaded = true
+--         print('[AltControl] ✅ Extended features loaded')
+--     else
+--         print('[AltControl] ❌ Failed to load Extended:', module)
+--     end
+-- end
+```
+
+Après ça, Extended ne se chargera que quand tu tapes `//ac allon`.
 
 ### Socket TCP
 
