@@ -968,9 +968,13 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
             variant="danger"
           />
           <CommandButton
-            label={autoEngage ? "Auto: ON" : "Auto: OFF"}
-            icon={autoEngage ? <Zap /> : <Zap />}
-            onClick={handleAutoEngageToggle}
+            label={autoEngage ? "⚔️ Engage: ON" : "⚔️ Engage: OFF"}
+            icon={<Zap />}
+            onClick={() => {
+              const newState = !autoEngage;
+              setAutoEngage(newState);
+              sendCommand(newState ? '//ac autoengage start' : '//ac autoengage stop');
+            }}
             variant={autoEngage ? "success" : "warning"}
           />
           <CommandButton
@@ -1011,16 +1015,6 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
             icon={<Navigation />}
             onClick={handleWalkRun}
             variant="primary"
-          />
-          <CommandButton
-            label={autoEngage ? "⚔️ Engage: ON" : "⚔️ Engage: OFF"}
-            icon={<Zap />}
-            onClick={() => {
-              const newState = !autoEngage;
-              setAutoEngage(newState);
-              sendCommand(newState ? '//ac autoengage start' : '//ac autoengage stop');
-            }}
-            variant={autoEngage ? "success" : "warning"}
           />
           
           {/* 🎵 AutoCast OU Follow (pas les deux en même temps) */}
