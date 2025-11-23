@@ -50,8 +50,7 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
         
         // Si on désactive, envoyer les commandes de stop
         if (!newState) {
-          await sendCommand('/console send @sch //dfollow stop');
-          await sendCommand('/console send @sch //lua unload DistanceFollow');
+          await sendCommand('/console send @sch //ac dfollow stop');
         }
       }
     } catch (error) {
@@ -370,16 +369,16 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
     handleDirection(direction, false);
   };
 
-  const toggleFollow = () => {
+  const toggleFollow = async () => {
   const newState = !followActive;
   setFollowActive(newState);
   
   if (newState) {
-    // Follow ON : commande classique
-    sendCommand("/follow <p1>");
+    // Follow ON : utiliser DistanceFollow
+    await sendCommand("//ac dfollow <p1>");
   } else {
-    // Follow OFF : utilise le macro setkey
-    sendCommand("//setkey numpad7 down");
+    // Follow OFF : arrêter DistanceFollow
+    await sendCommand("//ac dfollow stop");
     setTimeout(() => {
       sendCommand("//setkey numpad7 up");
     }, 100); // 100ms de délai
