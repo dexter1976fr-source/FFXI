@@ -178,12 +178,18 @@ end
 function DistanceFollow.handleCommand(...)
     local args = {...}
     
+    -- Debug: afficher tous les arguments reçus
+    print('[DistanceFollow] 🐛 handleCommand called with '..#args..' args')
+    for i, arg in ipairs(args) do
+        print('[DistanceFollow] 🐛 arg['..i..'] = '..tostring(arg))
+    end
+    
     if #args == 0 then
         print('[DistanceFollow] Usage:')
-        print('  //ac dfollow [name] [mode]')
+        print('  //ac dfollow [mode] [name]')
         print('  //ac dfollow stop')
         print('  //ac dfollow config [combat_min] [combat_max] [follow_min] [follow_max]')
-        print('Example: //ac dfollow Dexterbrown combat')
+        print('Example: //ac dfollow combat Dexterbrown')
         return
     end
     
@@ -205,8 +211,16 @@ function DistanceFollow.handleCommand(...)
             print('  Follow: '..DistanceFollow.config.follow_min..' - '..DistanceFollow.config.follow_max)
         end
         
+    elseif command == 'combat' or command == 'follow' then
+        -- Syntaxe: //ac dfollow [mode] [target]
+        local mode = command
+        local target = args[2] or '<p1>'
+        local auto_engage = (mode == 'combat')
+        DistanceFollow.start(target, auto_engage)
+        
     else
-        -- Premier argument = nom de la cible
+        -- Fallback: si le premier arg n'est pas une commande connue, on assume que c'est le nom
+        -- Syntaxe alternative: //ac dfollow [name] [mode]
         local target = args[1]
         local auto_engage = args[2] == 'combat' or args[2] == 'true'
         DistanceFollow.start(target, auto_engage)

@@ -377,7 +377,8 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
     // Follow ON : utiliser DistanceFollow avec le mode approprié
     // Si AutoEngage est actif, mode combat, sinon mode suivi
     const mode = autoEngage ? 'combat' : 'follow';
-    const command = `//ac dfollow Dexterbrown ${mode}`;
+    // Syntaxe: //ac dfollow [mode] [target]
+    const command = `//ac dfollow ${mode} Dexterbrown`;
     console.log(`[Follow] Sending command: ${command}`);
     // TODO: À terme, configurable via la webapp (page admin) comme pour l'overlay
     await sendCommand(command);
