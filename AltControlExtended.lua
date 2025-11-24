@@ -18,6 +18,7 @@ local autocast = nil
 local autoengage = nil
 local distancefollow = nil
 local altpetoverlay = nil
+local bardcycle = nil
 
 function load_tool(tool_name)
     local success, module = pcall(require, 'tools/' .. tool_name)
@@ -134,6 +135,31 @@ windower.register_event('addon command', function(command, ...)
         if autoengage then
             local args = {...}
             autoengage.handle_command(table.unpack(args))
+        end
+        
+    elseif command == 'bardcycle' then
+        -- Commandes BardCycle: //ac bardcycle start/stop
+        local args = {...}
+        local action = args[1] and args[1]:lower()
+        
+        if not bardcycle then
+            print('[AltControl] Loading BardCycle tool...')
+            bardcycle = load_tool('BardCycle')
+            if bardcycle then
+                bardcycle.init()
+                print('[AltControl] ✅ BardCycle tool loaded')
+            else
+                print('[AltControl] ❌ Failed to load BardCycle tool')
+                return
+            end
+        end
+        
+        if action == 'start' then
+            bardcycle.start()
+        elseif action == 'stop' then
+            bardcycle.stop()
+        else
+            print('[AltControl] Usage: //ac bardcycle start|stop')
         end
         
     elseif command == 'dfollow' then
@@ -1031,6 +1057,11 @@ windower.register_event('prerender', function()
     -- AltPetOverlay check socket chaque frame
     if altpetoverlay then
         altpetoverlay.update()
+    end
+    
+    -- BardCycle update chaque frame
+    if bardcycle and bardcycle.active then
+        bardcycle.update()
     end
 end)
 
