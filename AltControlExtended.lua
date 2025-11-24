@@ -1082,10 +1082,9 @@ function Extended.initialize()
     -- Charger l'overlay si personnage principal
     local player = windower.ffxi.get_player()
     if player and player.name == 'Dexterbrown' then
-        local success = load_tool('AltPetOverlay')
-        if success then
-            print('[Extended] ✅ Pet Overlay loaded (main character)')
-        end
+        -- AltPetOverlay est un addon séparé, pas un tool
+        windower.send_command('lua load AltPetOverlay')
+        print('[Extended] ✅ Pet Overlay loading...')
     end
     
     print('[Extended] ✅ All features initialized')
