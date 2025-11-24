@@ -398,26 +398,15 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
     if (newState) {
       console.log(`[AutoCast] Starting for ${altData?.alt_name} (${altData?.main_job})`);
       
-      // 🆕 Notifier le serveur Python pour le BRD
+      // 🎵 Pour le BRD: Démarrer BardCycle (tout en Lua)
       if (altData?.main_job === 'BRD') {
-        try {
-          await fetch('http://127.0.0.1:5000/brd/autocast', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'start' })
-          });
-          console.log('[AutoCast] ✅ BRD Manager notified (start)');
-        } catch (error) {
-          console.error('[AutoCast] Error notifying BRD Manager:', error);
-        }
+        await sendCommand(`//ac bardcycle start`);
+        console.log('[AutoCast] ✅ BardCycle started (Lua tool)');
+      } else {
+        // Autres jobs: démarrer AutoCast classique
+        await sendCommand(`//ac start`);
+        console.log(`[AutoCast] ✅ Started`);
       }
-      
-      // Démarrer AutoCast
-      await sendCommand(`//ac start`);
-      
-      // 🆕 Pour le BRD: NE PAS activer auto_songs
-      // Le serveur Python gère tout automatiquement
-      console.log(`[AutoCast] ✅ Started - Server will manage songs automatically`)
       
       // 🆕 AUTO-DÉTECTION DU HEALER
       if (altData?.party && altData.party.length > 0) {
@@ -471,18 +460,10 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
     } else {
       console.log(`[AutoCast] Stopping for ${altData?.alt_name}`);
       
-      // 🆕 Notifier le serveur Python pour le BRD
+      // 🎵 Pour le BRD: Arrêter BardCycle
       if (altData?.main_job === 'BRD') {
-        try {
-          await fetch('http://127.0.0.1:5000/brd/autocast', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'stop' })
-          });
-          console.log('[AutoCast] ✅ BRD Manager notified (stop)');
-        } catch (error) {
-          console.error('[AutoCast] Error notifying BRD Manager:', error);
-        }
+        await sendCommand(`//ac bardcycle stop`);
+        console.log('[AutoCast] ✅ BardCycle stopped');
       }
       
       // Arrêter le follow d'abord
