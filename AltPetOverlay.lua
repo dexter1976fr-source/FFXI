@@ -247,6 +247,15 @@ windower.register_event('ipc message', function(msg)
     end
     
     if data.owner and data.pet then
+        -- 🆕 Si pet = "NOPET", retirer le pet de l'affichage
+        if data.pet == 'NOPET' then
+            if pets[data.owner] then
+                pets[data.owner] = nil
+                rebuild_ui()
+            end
+            return
+        end
+        
         -- Update or create pet data
         pets[data.owner] = {
             name = data.pet,

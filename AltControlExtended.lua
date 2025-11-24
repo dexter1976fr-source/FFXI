@@ -934,51 +934,57 @@ function broadcast_pet_to_overlay()
     end
     
     local pet = windower.ffxi.get_mob_by_target("pet")
+    
+    -- 🆕 Si pas de pet, envoyer un message pour retirer l'affichage
     if not pet then 
+        local msg = string.format('petoverlay_owner:%s_pet:NOPET', player.name)
+        windower.send_ipc_message(msg)
         return 
     end
     
-    -- Format pour l'overlay: owner|name|hpp|charges|bp_rage|bp_ward|breath_ready|job
+    -- Calculer HP et max HP
     local hpp = pet.hpp or 100
-    local charges = ''
-    local bp_rage = ''
-    local bp_ward = ''
-    local breath_ready = ''
-    local job = player.main_job or 'UNKNOWN'
+    local hp = pet.hp or 0
+    local max_hp = (hpp > 0) and math.floor((hp * 100) / hpp) or 1000
     
-    -- Ajouter les infos spécifiques au job
+    -- Infos spécifiques au job
+    local charges = ''
+    local bp_timer = ''
+    local breath_ready = ''
+    
     if player.main_job == 'BST' then
         charges = tostring(get_bst_ready_charges())
     elseif player.main_job == 'SMN' then
         local ability_recasts = windower.ffxi.get_ability_recasts()
-        bp_rage = tostring(ability_recasts and ability_recasts[173] or 0)
-        bp_ward = tostring(ability_recasts and ability_recasts[174] or 0)
+        bp_timer = tostring(ability_recasts and ability_recasts[173] or 0)
     elseif player.main_job == 'DRG' then
         local ability_recasts = windower.ffxi.get_ability_recasts()
         local breath_timer = ability_recasts and ability_recasts[163] or 0
         breath_ready = (breath_timer <= 0) and 'true' or 'false'
     end
     
-    -- Construire le message au format attendu par l'overlay
-    local msg = string.format('%s|%s|%d|%s|%s|%s|%s|%s\n',
+    -- Construire le message IPC au format attendu par l'overlay
+    -- Format: "petoverlay_owner:Name_pet:PetName_hp:650_maxhp:1000_charges:3"
+    local msg = string.format('petoverlay_owner:%s_pet:%s_hp:%d_maxhp:%d',
         player.name,
         pet.name or 'Unknown',
-        hpp,
-        charges,
-        bp_rage,
-        bp_ward,
-        breath_ready,
-        job
+        hp,
+        max_hp
     )
     
-    -- Envoyer via socket
-    if connect_to_overlay() then
-        local ok, err = pet_overlay_socket:send(msg)
-        if not ok then
-            pet_overlay_socket:close()
-            pet_overlay_socket = nil
-        end
+    -- Ajouter les infos spécifiques au job
+    if charges ~= '' then
+        msg = msg .. '_charges:' .. charges
     end
+    if bp_timer ~= '' then
+        msg = msg .. '_bp_timer:' .. bp_timer
+    end
+    if breath_ready ~= '' then
+        msg = msg .. '_breath_ready:' .. breath_ready
+    end
+    
+    -- Envoyer via IPC
+    windower.send_ipc_message(msg)
 end
 
 windower.register_event('pet_change', broadcast_pet_to_overlay)
