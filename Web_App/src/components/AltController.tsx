@@ -997,29 +997,33 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
             variant="primary"
           />
           
-          {/* 🎵 AutoCast OU Follow (pas les deux en même temps) */}
-          {altData.main_job === 'BRD' ? (
+          {/* 🎵 BRD AutoCast (remplace Engage) */}
+          {altData.main_job === 'BRD' && (
             <CommandButton
               label={autoCastActive ? "🎵 Auto: ON" : "🎵 Auto: OFF"}
               icon={<Wand2 />}
               onClick={toggleAutoCast}
               variant={autoCastActive ? "success" : "primary"}
             />
-          ) : altData.main_job === 'SCH' ? (
+          )}
+          
+          {/* 📚 SCH AutoCast (en plus de Follow) */}
+          {altData.main_job === 'SCH' && (
             <CommandButton
               label={schAutoCastActive ? "📚 Auto: ON" : "📚 Auto: OFF"}
               icon={<Wand2 />}
               onClick={handleSchAutocast}
               variant={schAutoCastActive ? "success" : "primary"}
             />
-          ) : (
-            <CommandButton
-              label={followActive ? "Follow: ON" : "Follow: OFF"}
-              icon={<UserPlus />}
-              onClick={toggleFollow}
-              variant={followActive ? "success" : "primary"}
-            />
           )}
+          
+          {/* 👥 Follow (TOUS les jobs) */}
+          <CommandButton
+            label={followActive ? "Follow: ON" : "Follow: OFF"}
+            icon={<UserPlus />}
+            onClick={toggleFollow}
+            variant={followActive ? "success" : "primary"}
+          />
         </div>
 
         {/* Macros Button */}
