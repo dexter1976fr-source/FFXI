@@ -58,6 +58,17 @@ local function process_pet_data(data)
     local owner, name, hpp, charges, bp_rage, bp_ward, breath_ready, job = data:match('([^|]+)|([^|]+)|([^|]+)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)')
     
     if owner and name then
+        -- Si NOPET, retirer l'affichage
+        if name == 'NOPET' then
+            local slot = owner_to_slot[owner]
+            if slot then
+                pet_slots[slot] = nil
+                -- update_slot() va détecter que pet_slots[slot] est nil et supprimer l'affichage
+            end
+            return true, slot  -- Retourner true pour que update_slot soit appelé
+        end
+        
+        -- Pet valide, afficher
         if not owner_to_slot[owner] then
             owner_to_slot[owner] = next_slot
             next_slot = next_slot + 1

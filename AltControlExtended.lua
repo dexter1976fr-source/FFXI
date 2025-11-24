@@ -952,8 +952,12 @@ function broadcast_pet_to_overlay()
     
     local pet = windower.ffxi.get_mob_by_target("pet")
     
-    -- Si pas de pet, ne rien envoyer (l'overlay nettoiera après 10s)
+    -- Si pas de pet, envoyer un message pour retirer l'affichage
     if not pet then 
+        local msg = string.format('%s|NOPET|0||||||UNKNOWN\n', player.name)
+        if connect_to_pet_overlay() then
+            pet_overlay_socket:send(msg)
+        end
         return 
     end
     
@@ -1100,15 +1104,29 @@ function Extended.initialize()
     
     -- Charger l'overlay si personnage principal
     local player = windower.ffxi.get_player()
-    if player and player.name == 'Dexterbrown' then
-        -- Charger AltPetOverlay comme tool
-        print('[Extended] Loading AltPetOverlay tool...')
-        altpetoverlay = load_tool('AltPetOverlay')
-        if altpetoverlay then
-            altpetoverlay.init()
-            print('[Extended] ✅ Pet Overlay loaded (main character)')
-        else
-            print('[Extended] ❌ Failed to load Pet Overlay')
+    if player then
+        -- Lire party_roles.json pour savoir qui est le main
+        local file_path = windower.addon_path:match("^(.-)[^\\/]*$") .. "../data_json/party_roles.json"
+        local file = io.open(file_path, "r")
+        local main_character = nil
+        
+        if file then
+            local content = file:read("*all")
+            file:close()
+            -- Parser JSON basique
+            main_character = content:match('"main_character"%s*:%s*"([^"]+)"')
+        end
+        
+        if main_character and player.name == main_character then
+            -- Charger AltPetOverlay comme tool
+            print('[Extended] Loading AltPetOverlay tool...')
+            altpetoverlay = load_tool('AltPetOverlay')
+            if altpetoverlay then
+                altpetoverlay.init()
+                print('[Extended] ✅ Pet Overlay loaded (main character: ' .. main_character .. ')')
+            else
+                print('[Extended] ❌ Failed to load Pet Overlay')
+            end
         end
     end
     
