@@ -944,16 +944,19 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
             }}
             variant="danger"
           />
-          <CommandButton
-            label={autoEngage ? "⚔️ Engage: ON" : "⚔️ Engage: OFF"}
-            icon={<Zap />}
-            onClick={() => {
-              const newState = !autoEngage;
-              setAutoEngage(newState);
-              sendCommand(newState ? '//ac autoengage start' : '//ac autoengage stop');
-            }}
-            variant={autoEngage ? "success" : "warning"}
-          />
+          {/* 🎵 Pas de bouton Engage pour BRD/SCH (ils ont AutoCast) */}
+          {altData.main_job !== 'BRD' && altData.main_job !== 'SCH' && (
+            <CommandButton
+              label={autoEngage ? "⚔️ Engage: ON" : "⚔️ Engage: OFF"}
+              icon={<Zap />}
+              onClick={() => {
+                const newState = !autoEngage;
+                setAutoEngage(newState);
+                sendCommand(newState ? '//ac autoengage start' : '//ac autoengage stop');
+              }}
+              variant={autoEngage ? "success" : "warning"}
+            />
+          )}
           <CommandButton
             label="Magic"
             icon={<Wand2 />}
