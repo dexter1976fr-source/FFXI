@@ -374,9 +374,8 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
       const roles = await backendService.getPartyRoles();
       const mainCharacter = roles.main_character || 'Dexterbrown'; // Fallback
       
-      // Follow ON : toujours démarrer en mode combat (0.5-1 yalm)
-      // Le mode suivi (10-18) ne s'active que quand Engage est désactivé
-      const command = `//ac dfollow combat ${mainCharacter}`;
+      // Follow ON : mode "follow" qui recule automatiquement quand le main engage
+      const command = `//ac dfollow follow ${mainCharacter}`;
       console.log(`[Follow] Sending command: ${command}`);
       await sendCommand(command);
     } catch (error) {
