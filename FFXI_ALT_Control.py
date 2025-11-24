@@ -657,6 +657,16 @@ def save_party_roles():
         with open(roles_file, 'w', encoding='utf-8') as f:
             json.dump(roles, f, indent=2, ensure_ascii=False)
         
+        # Copier vers Windower pour que Lua puisse le lire
+        windower_path = "A:/Jeux/PlayOnline/Windower4/addons/data_json/party_roles.json"
+        try:
+            os.makedirs(os.path.dirname(windower_path), exist_ok=True)
+            with open(windower_path, 'w', encoding='utf-8') as f:
+                json.dump(roles, f, indent=2, ensure_ascii=False)
+            print(f"[PARTY ROLES] Saved to Windower: {roles}")
+        except Exception as e:
+            print(f"[WARNING] Could not copy to Windower: {e}")
+        
         print(f"[PARTY ROLES] Saved: {roles}")
         
         return jsonify({

@@ -1105,25 +1105,25 @@ function Extended.initialize()
     -- Charger l'overlay si personnage principal
     local player = windower.ffxi.get_player()
     if player then
-        -- Lire party_roles.json pour savoir qui est le main
-        local file_path = windower.addon_path:match("^(.-)[^\\/]*$") .. "../data_json/party_roles.json"
+        -- Lire party_roles.json
+        local addon_dir = windower.addon_path:match("^(.+[/\\])")
+        local file_path = addon_dir .. "../data_json/party_roles.json"
+        
         local file = io.open(file_path, "r")
         local main_character = nil
         
         if file then
             local content = file:read("*all")
             file:close()
-            -- Parser JSON basique
             main_character = content:match('"main_character"%s*:%s*"([^"]+)"')
         end
         
         if main_character and player.name == main_character then
-            -- Charger AltPetOverlay comme tool
             print('[Extended] Loading AltPetOverlay tool...')
             altpetoverlay = load_tool('AltPetOverlay')
             if altpetoverlay then
                 altpetoverlay.init()
-                print('[Extended] ✅ Pet Overlay loaded (main character: ' .. main_character .. ')')
+                print('[Extended] ✅ Pet Overlay loaded (main: ' .. main_character .. ')')
             else
                 print('[Extended] ❌ Failed to load Pet Overlay')
             end
