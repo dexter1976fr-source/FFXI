@@ -369,12 +369,21 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
   setFollowActive(newState);
   
   if (newState) {
-    // Follow ON : toujours démarrer en mode combat (0.5-1 yalm)
-    // Le mode suivi (10-18) ne s'active que quand Engage est désactivé
-    const command = `//ac dfollow combat Dexterbrown`;
-    console.log(`[Follow] Sending command: ${command}`);
-    // TODO: À terme, configurable via la webapp (page admin) comme pour l'overlay
-    await sendCommand(command);
+    // Récupérer le main character depuis party_roles
+    try {
+      const roles = await backendService.getPartyRoles();
+      const mainCharacter = roles.main_character || 'Dexterbrown'; // Fallback
+      
+      // Follow ON : toujours démarrer en mode combat (0.5-1 yalm)
+      // Le mode suivi (10-18) ne s'active que quand Engage est désactivé
+      const command = `//ac dfollow combat ${mainCharacter}`;
+      console.log(`[Follow] Sending command: ${command}`);
+      await sendCommand(command);
+    } catch (error) {
+      console.error('[Follow] Error getting main character:', error);
+      // Fallback sur Dexterbrown
+      await sendCommand(`//ac dfollow combat Dexterbrown`);
+    }
   } else {
     // Follow OFF : arrêter DistanceFollow
     console.log('[Follow] Stopping DistanceFollow');
