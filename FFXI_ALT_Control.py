@@ -240,66 +240,9 @@ def get_alt_abilities(alt_name):
 
 # ============ PET OVERLAY SOCKET ============
 
-pet_overlay_socket = None
-PET_OVERLAY_PORT = 5009  # Retour à 5009 car le config garde ce port
-
-def init_pet_overlay_socket():
-    """Initialise la connexion socket vers l'overlay"""
-    global pet_overlay_socket
-    try:
-        pet_overlay_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        pet_overlay_socket.connect(('127.0.0.1', PET_OVERLAY_PORT))
-        pet_overlay_socket.settimeout(0.1)
-        print(f"[INFO] ✅ Connected to PetOverlay on port {PET_OVERLAY_PORT}")
-    except ConnectionRefusedError:
-        pet_overlay_socket = None
-        print(f"[WARN] PetOverlay not listening on port {PET_OVERLAY_PORT} (load it with //lua load AltPetOverlay)")
-    except Exception as e:
-        pet_overlay_socket = None
-        print(f"[ERROR] Failed to connect to PetOverlay: {e}")
-
-def send_pet_data_to_overlay(alt_name, alt_data):
-    """Envoie les données d'un pet via socket"""
-    global pet_overlay_socket
-    
-    pet_name = alt_data.get("pet_name")
-    if not pet_name:
-        return
-    
-    try:
-        # Reconnect if needed
-        if not pet_overlay_socket:
-            init_pet_overlay_socket()
-            if not pet_overlay_socket:
-                return
-        
-        # Utiliser le pourcentage HP (hpp) car hp absolu n'est pas disponible
-        pet_hpp = alt_data.get("pet_hpp", 100)
-        
-        # Format: owner|name|hpp|charges|bp_rage|bp_ward|breath_ready
-        charges = ""
-        bp_rage = ""
-        bp_ward = ""
-        breath_ready = ""
-        
-        main_job = alt_data.get("main_job", "")
-        if main_job == "BST":
-            charges = str(alt_data.get("bst_ready_charges", 0))
-        elif main_job == "SMN":
-            ability_recasts = alt_data.get("ability_recasts", {})
-            bp_rage = str(ability_recasts.get("173", 0))  # BP Rage
-            bp_ward = str(ability_recasts.get("174", 0))  # BP Ward
-        elif main_job == "DRG":
-            ability_recasts = alt_data.get("ability_recasts", {})
-            breath_timer = ability_recasts.get("163", 0)
-            breath_ready = "true" if breath_timer <= 0 else "false"
-        
-        line = f"{alt_name}|{pet_name}|{pet_hpp}|{charges}|{bp_rage}|{bp_ward}|{breath_ready}\n"
-        pet_overlay_socket.sendall(line.encode('utf-8'))
-        
-    except (BrokenPipeError, ConnectionResetError, OSError):
-        # Connection lost, reset socket
-        pet_overlay_socket = None
+# 🗑️ Pet Overlay socket removed - now uses IPC (Lua → Lua) instead of TCP
+# Extended (Lua) sends pet data directly to AltPetOverlay via windower.send_ipc_message()
+# No need for Python to relay pet data anymore
 
 # ============ BROADCAST WEBSOCKET ============
 
@@ -517,8 +460,7 @@ def handle_client(conn, addr):
         # 🆕 CORRECTION: Broadcast WebSocket aux clients connectés
         broadcast_alt_update(alt_name)
         
-        # 🆕 Envoyer les données de pet via socket (temps réel)
-        send_pet_data_to_overlay(alt_name, alts[alt_name])
+        # 🗑️ Pet data now sent via IPC (Lua → Lua), not via Python
         
         # 🆕 Vérifier si des casts en attente peuvent être envoyés
         process_pending_casts()
