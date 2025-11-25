@@ -1,6 +1,5 @@
 --------------------------------------------------------------
--- SONG SERVICE - Pull-based Bard system
--- Clients request songs, Bard serves them
+-- SONG SERVICE - Pull-based Bard system (Version optimisée)
 --------------------------------------------------------------
 
 local SongService = {}
@@ -16,14 +15,17 @@ SongService.config = {
     checkInterval = 30,
 }
 
--- État
+-- États (simplifiés)
 SongService.active = false
-SongService.role = nil  -- "BARD" ou "CLIENT"
-SongService.state = "IDLE"  -- IDLE, STANDBY, SERVING
-SongService.queue = {}  -- Queue de requêtes pour le Bard
-SongService.last_check = 0  -- Dernier check de buffs (clients)
+SongService.role = nil
+SongService.state = "IDLE"
+SongService.requests_by_target = {}  -- Regroupement par target
+SongService.song_queue = {}          -- Queue globale des songs
+SongService.current_target = nil     -- Target actuelle en cours
+SongService.cast_phase = nil         -- "MOVING_TO_TARGET" ou "CASTING"
+SongService.last_cast_time = 0       -- Pour timing des casts
+SongService.last_check = 0
 SongService.moving = false
-SongService.current_request = nil
 
 -- Mapping songs → buff names
 local SONG_TO_BUFF = {
@@ -50,23 +52,22 @@ local function log(msg)
     print("[SongService] " .. msg)
 end
 
--- Charger la config
 function SongService.load_config()
     local addon_dir = windower.addon_path:match("^(.+[/\\])")
     local config_path = addon_dir .. "data/autocast_config.json"
     local file = io.open(config_path, "r")
-    if not file then 
-        log('Config file not found')
-        return false 
+    if not file then
+        log("ERROR: Config file not found at " .. config_path)
+        return false
     end
     
     local content = file:read("*all")
     file:close()
     
     local data = json.decode(content)
-    if not data or not data.SongService then 
-        log('SongService config not found')
-        return false 
+    if not data or not data.SongService then
+        log("ERROR: SongService config not found in JSON")
+        return false
     end
     
     local cfg = data.SongService
@@ -75,16 +76,31 @@ function SongService.load_config()
     SongService.config.bardName = cfg.bardName or ""
     SongService.config.clients = cfg.clients or {}
     SongService.config.followDistance = cfg.followDistance or 0.75
+    SongService.config.checkInterval = cfg.checkInterval or 30
+    
+    log("Config loaded:")
+    log("  Main: " .. SongService.config.mainCharacter)
+    log("  Healer: " .. SongService.config.healerCharacter)
+    log("  Bard: " .. SongService.config.bardName)
+    
+    local client_names = {}
+    for name, _ in pairs(SongService.config.clients) do
+        table.insert(client_names, name)
+    end
+    log("  Clients: " .. table.concat(client_names, ", "))
     
     return true
 end
 
--- Déterminer le rôle
 function SongService.detect_role()
     local player = windower.ffxi.get_player()
     if not player then return nil end
     
-    if player.name == SongService.config.bardName then
+    -- Détecter automatiquement le Bard par son job
+    if player.main_job == 'BRD' then
+        log("Auto-detected as BARD (job: BRD)")
+        -- Mettre à jour le nom du bard dans la config
+        SongService.config.bardName = player.name
         return "BARD"
     elseif SongService.config.clients[player.name] then
         return "CLIENT"
@@ -93,13 +109,7 @@ function SongService.detect_role()
     return nil
 end
 
--- Vérifier si le main est engaged
-local function is_main_engaged()
-    local main = windower.ffxi.get_mob_by_name(SongService.config.mainCharacter)
-    return main and main.status == 1
-end
-
--- Distance au carré
+-- Distance squared
 local function distance_sq(m1, m2)
     if not m1 or not m2 then return 99999 end
     local dx = m1.x - m2.x
@@ -107,17 +117,27 @@ local function distance_sq(m1, m2)
     return dx*dx + dy*dy
 end
 
--- Follow un target
+-- Follow target, retourne true si arrivé
 local function follow_target(target_name, distance)
-    local me = windower.ffxi.get_mob_by_target('me')
+    local me = windower.ffxi.get_mob_by_target("me")
     local target = windower.ffxi.get_mob_by_name(target_name)
+    
+    -- 🔥 NE PAS BOUGER SI EN TRAIN DE CASTER
+    local player = windower.ffxi.get_player()
+    if player and player.status == 4 then
+        if SongService.moving then
+            windower.ffxi.run(false)
+            SongService.moving = false
+        end
+        return false  -- Pas arrivé, on attend la fin du cast
+    end
     
     if not me or not target then
         if SongService.moving then
             windower.ffxi.run(false)
             SongService.moving = false
         end
-        return
+        return false
     end
     
     local d2 = distance_sq(me, target)
@@ -127,21 +147,22 @@ local function follow_target(target_name, distance)
         local len = math.sqrt(d2)
         windower.ffxi.run((target.x - me.x)/len, (target.y - me.y)/len)
         SongService.moving = true
+        return false
     elseif d2 < (distance - tolerance)^2 then
         local len = math.sqrt(d2)
         windower.ffxi.run(-(target.x - me.x)/len, -(target.y - me.y)/len)
         SongService.moving = true
-    elseif SongService.moving then
-        windower.ffxi.run(false)
-        SongService.moving = false
+        return false
+    else
+        if SongService.moving then
+            windower.ffxi.run(false)
+            SongService.moving = false
+        end
+        return true
     end
 end
 
---------------------------------------------------------------
--- CLIENT LOGIC
---------------------------------------------------------------
-
--- Vérifier si un buff est actif
+-- Vérifie si un buff est actif (local check)
 local function has_buff(buff_name)
     local player = windower.ffxi.get_player()
     if not player or not player.buffs then return false end
@@ -159,128 +180,194 @@ local function has_buff(buff_name)
     return false
 end
 
--- Check si les songs sont actifs
-local function check_my_songs()
+-- Check si le main est engaged
+local function is_engaged()
+    local main = windower.ffxi.get_mob_by_name(SongService.config.mainCharacter)
+    return main and main.status == 1
+end
+
+--------------------------------------------------------------
+-- CLIENT LOGIC
+--------------------------------------------------------------
+
+local function client_request_songs()
     local player = windower.ffxi.get_player()
     if not player then return end
     
     local my_songs = SongService.config.clients[player.name]
     if not my_songs or #my_songs == 0 then return end
     
-    -- Vérifier chaque song
+    -- Vérifier si AU MOINS UN buff manque
+    local missing_any = false
+    local missing_list = {}
+    
     for _, song in ipairs(my_songs) do
         local buff_name = SONG_TO_BUFF[song:lower()]
         if buff_name and not has_buff(buff_name) then
-            log('Missing: ' .. song .. ' → requesting')
-            -- Envoyer requête au Bard
-            windower.send_command('input /tell ' .. SongService.config.bardName .. ' //ac songrequest ' .. player.name)
-            return  -- Une seule requête à la fois
+            missing_any = true
+            table.insert(missing_list, song)
         end
+    end
+    
+    -- Si au moins un buff manque, demander TOUS les songs
+    if missing_any then
+        log("Missing buffs: " .. table.concat(missing_list, ", ") .. " → requesting ALL songs")
+        windower.send_command('input //send ' .. SongService.config.bardName .. ' ac songrequest ' .. player.name)
     end
 end
 
 function SongService.client_update()
-    if not is_main_engaged() then return end
+    if not is_engaged() then return end
     
     local now = os.clock()
-    if now - SongService.last_check < SongService.config.checkInterval then
-        return
+    local player = windower.ffxi.get_player()
+    if not player then return end
+    
+    -- Décalage initial selon le rôle
+    local initial_delay = 0
+    if player.name == SongService.config.healerCharacter then
+        initial_delay = 5  -- Healer check à 5s
+    elseif player.name == SongService.config.mainCharacter then
+        initial_delay = 20  -- Melee check à 20s
     end
     
-    SongService.last_check = now
-    check_my_songs()
-end
-
---------------------------------------------------------------
--- BARD LOGIC
---------------------------------------------------------------
-
--- Ajouter une requête à la queue
-function SongService.add_request(requester)
-    -- Vérifier si déjà dans la queue
-    for _, req in ipairs(SongService.queue) do
-        if req.requester == requester then
-            log('Request from ' .. requester .. ' already in queue')
+    -- Premier check après le délai initial
+    if SongService.last_check == 0 then
+        if now < initial_delay then
+            return
+        end
+    else
+        -- Checks suivants toutes les 30s
+        if now - SongService.last_check < SongService.config.checkInterval then
             return
         end
     end
     
-    table.insert(SongService.queue, {
-        requester = requester,
-        timestamp = os.clock()
-    })
-    
-    log('Added request from ' .. requester .. ' (queue: ' .. #SongService.queue .. ')')
+    SongService.last_check = now
+    client_request_songs()
 end
 
--- Cast songs sur un client
-local function cast_songs_on_client(client_name)
-    local songs = SongService.config.clients[client_name]
-    if not songs or #songs == 0 then
-        log('No songs configured for ' .. client_name)
-        return
+--------------------------------------------------------------
+-- BARD LOGIC (OPTIMISÉE)
+--------------------------------------------------------------
+
+function SongService.add_request(requester)
+    -- Marquer que ce requester a besoin de service
+    SongService.requests_by_target[requester] = true
+    
+    -- Ajouter tous ses songs à la queue si pas déjà fait
+    if not SongService.requests_by_target[requester .. "_queued"] then
+        local songs = SongService.config.clients[requester]
+        if songs then
+            for _, song in ipairs(songs) do
+                table.insert(SongService.song_queue, {
+                    song = song,
+                    target = requester
+                })
+            end
+            SongService.requests_by_target[requester .. "_queued"] = true
+            log("Queued " .. #songs .. " songs for " .. requester)
+        end
     end
-    
-    log('Casting ' .. #songs .. ' songs on ' .. client_name)
-    windower.send_command('input /ta ' .. client_name)
-    coroutine.sleep(1)
-    
-    for _, song in ipairs(songs) do
-        log('  → ' .. song)
-        windower.send_command('input /ma "' .. song .. '" <me>')
-        coroutine.sleep(5)  -- Temps de cast
+end
+
+-- Fonction helper
+local function get_remaining_for_target(target_name)
+    local count = 0
+    for _, song_data in ipairs(SongService.song_queue) do
+        if song_data.target == target_name then count = count + 1 end
     end
-    
-    log('Finished casting on ' .. client_name)
+    return count
 end
 
 function SongService.bard_update()
-    local engaged = is_main_engaged()
+    local engaged = is_engaged()
+    local now = os.clock()
     
-    -- IDLE : hors combat, follow main
+    -- IDLE : hors combat
     if not engaged then
-        if SongService.state ~= "IDLE" then
-            log('Combat ended → IDLE')
-            SongService.state = "IDLE"
-            SongService.queue = {}  -- Vider la queue
-        end
+        SongService.requests_by_target = {}
+        SongService.song_queue = {}
+        SongService.current_target = nil
+        SongService.cast_phase = nil
+        SongService.state = "IDLE"
         follow_target(SongService.config.mainCharacter, SongService.config.followDistance)
         return
     end
     
-    -- STANDBY : en combat, queue vide, follow healer
-    if #SongService.queue == 0 then
+    -- Si on a des songs à caster, les traiter
+    if #SongService.song_queue > 0 then
+        -- Prendre le prochain target si pas de target actuelle
+        if not SongService.current_target then
+            -- Trouver le prochain target avec des songs
+            for target, _ in pairs(SongService.requests_by_target) do
+                if target ~= SongService.config.bardName and not target:find("_queued") then
+                    SongService.current_target = target
+                    SongService.cast_phase = "MOVING_TO_TARGET"
+                    log("Moving to " .. target .. " to cast songs")
+                    break
+                end
+            end
+            if not SongService.current_target then return end
+        end
+        
+        local target = SongService.current_target
+        
+        -- Phase MOVING_TO_TARGET
+        if SongService.cast_phase == "MOVING_TO_TARGET" then
+            if follow_target(target, SongService.config.followDistance) then
+                log("Arrived at " .. target .. ", starting cast sequence")
+                SongService.cast_phase = "CASTING"
+                SongService.last_cast_time = now - 3  -- Commencer immédiatement
+            end
+            return
+        end
+        
+        -- Phase CASTING : Caster tous les songs pour ce target
+        if SongService.cast_phase == "CASTING" then
+            -- Vérifier qu'on a encore des songs pour ce target
+            local has_songs_for_target = false
+            for _, song_data in ipairs(SongService.song_queue) do
+                if song_data.target == target then
+                    has_songs_for_target = true
+                    break
+                end
+            end
+            
+            if not has_songs_for_target then
+                -- Plus de songs pour ce target, passer au suivant
+                log("Finished casting for " .. target)
+                SongService.requests_by_target[target] = nil
+                SongService.current_target = nil
+                SongService.cast_phase = nil
+                return
+            end
+            
+            -- Attendre entre les casts (3s)
+            if now - SongService.last_cast_time < 3 then return end
+            
+            local player = windower.ffxi.get_player()
+            if player and player.status == 4 then return end  -- Déjà en train de caster
+            
+            -- Caster le prochain song pour ce target
+            for i, song_data in ipairs(SongService.song_queue) do
+                if song_data.target == target then
+                    table.remove(SongService.song_queue, i)
+                    windower.send_command('input /ma "' .. song_data.song .. '" <me>')
+                    SongService.last_cast_time = now
+                    log("Casting: " .. song_data.song .. " for " .. target .. " (remaining: " .. get_remaining_for_target(target) .. ")")
+                    return
+                end
+            end
+        end
+    else
+        -- Rien à caster, suivre healer
         if SongService.state ~= "STANDBY" then
-            log('Queue empty → STANDBY (following healer)')
+            log("No songs to cast → STANDBY")
             SongService.state = "STANDBY"
         end
         follow_target(SongService.config.healerCharacter, SongService.config.followDistance)
-        return
     end
-    
-    -- SERVING : traiter la queue
-    if SongService.state ~= "SERVING" then
-        log('Processing queue → SERVING')
-        SongService.state = "SERVING"
-    end
-    
-    -- Prendre la première requête
-    local request = table.remove(SongService.queue, 1)
-    if not request then return end
-    
-    log('Serving: ' .. request.requester)
-    
-    -- Aller vers le client
-    follow_target(request.requester, SongService.config.followDistance)
-    coroutine.sleep(3)  -- Wait pour arriver
-    
-    -- Cast songs
-    cast_songs_on_client(request.requester)
-    
-    -- Retourner vers healer
-    log('Returning to healer')
-    follow_target(SongService.config.healerCharacter, SongService.config.followDistance)
-    coroutine.sleep(2)
 end
 
 --------------------------------------------------------------
@@ -302,60 +389,83 @@ end
 --------------------------------------------------------------
 
 function SongService.start()
-    log('========================================')
-    log('STARTING SONG SERVICE')
-    log('========================================')
+    log("========================================")
+    log("STARTING SONG SERVICE")
+    log("========================================")
     
     if not SongService.load_config() then
-        log('ERROR: Cannot load config')
+        log("ERROR: Cannot load config")
         return false
     end
     
     SongService.role = SongService.detect_role()
     if not SongService.role then
-        log('ERROR: Not configured as Bard or Client')
+        log("ERROR: Not configured as Bard or Client")
         return false
     end
     
     SongService.active = true
     SongService.state = "IDLE"
-    SongService.queue = {}
+    SongService.requests_by_target = {}
+    SongService.song_queue = {}
+    SongService.current_target = nil
+    SongService.cast_phase = nil
     SongService.last_check = 0
+    SongService.last_cast_time = 0
     
-    log('Role: ' .. SongService.role)
-    log('SongService started!')
+    log("Role: " .. SongService.role)
+    
+    -- Activer le follow sur le main
+    log("Starting follow on: " .. SongService.config.mainCharacter)
+    windower.send_command('input //ac follow ' .. SongService.config.mainCharacter)
+    
+    log("SongService started!")
     return true
 end
 
 function SongService.stop()
-    log('Stopping SongService...')
+    log("Stopping SongService...")
     SongService.active = false
-    SongService.queue = {}
+    SongService.requests_by_target = {}
+    SongService.song_queue = {}
+    SongService.current_target = nil
+    SongService.cast_phase = nil
     if SongService.moving then
         windower.ffxi.run(false)
         SongService.moving = false
     end
-    log('SongService stopped')
+    log("SongService stopped")
 end
 
 function SongService.status()
-    log('========================================')
-    log('SONG SERVICE STATUS')
-    log('========================================')
-    log('Active: ' .. tostring(SongService.active))
-    log('Role: ' .. tostring(SongService.role))
+    log("========================================")
+    log("SONG SERVICE STATUS")
+    log("========================================")
+    log("Active: " .. tostring(SongService.active))
+    log("Role: " .. tostring(SongService.role))
     if SongService.role == "BARD" then
-        log('State: ' .. SongService.state)
-        log('Queue: ' .. #SongService.queue .. ' requests')
-        for i, req in ipairs(SongService.queue) do
-            log('  [' .. i .. '] ' .. req.requester)
+        log("State: " .. SongService.state)
+        log("Song queue: " .. #SongService.song_queue .. " songs")
+        log("Current target: " .. tostring(SongService.current_target))
+        log("Cast phase: " .. tostring(SongService.cast_phase))
+        
+        -- Afficher la queue par target
+        local targets = {}
+        for _, song_data in ipairs(SongService.song_queue) do
+            if not targets[song_data.target] then
+                targets[song_data.target] = 0
+            end
+            targets[song_data.target] = targets[song_data.target] + 1
+        end
+        for target, count in pairs(targets) do
+            log("  " .. target .. ": " .. count .. " songs")
         end
     end
-    log('========================================')
+    log("========================================")
 end
 
 function SongService.init()
-    log('SongService module loaded')
+    log("SongService module loaded")
     return true
 end
 
