@@ -52,43 +52,95 @@ local function log(msg)
     print("[SongService] " .. msg)
 end
 
-function SongService.load_config()
+-- 🆕 Chargement des rôles depuis party_roles.json
+function SongService.load_party_roles()
     local addon_dir = windower.addon_path:match("^(.+[/\\])")
-    local config_path = addon_dir .. "data/autocast_config.json"
-    local file = io.open(config_path, "r")
-    if not file then
-        log("ERROR: Config file not found at " .. config_path)
+    local roles_path = addon_dir .. "../data_json/party_roles.json"
+    local file = io.open(roles_path, "r")
+    if file then
+        local content = file:read("*all")
+        file:close()
+        local data = json.decode(content)
+        if data then
+            SongService.config.mainCharacter = data.main_character or ""
+            SongService.config.healerCharacter = data.alt1 or ""  -- alt1 = healer
+            SongService.config.bardName = data.alt2 or ""          -- alt2 = bard
+            log("Party roles loaded: Main=" .. SongService.config.mainCharacter .. ", Healer=" .. SongService.config.healerCharacter .. ", Bard=" .. SongService.config.bardName)
+            return true
+        end
+    end
+    log("ERROR: Could not load party roles from " .. roles_path)
+    return false
+end
+
+-- 🆕 Chargement des configs de songs depuis alt_configs.json
+function SongService.load_song_configs()
+    local addon_dir = windower.addon_path:match("^(.+[/\\])")
+    local configs_path = addon_dir .. "../data_json/alt_configs.json"
+    local file = io.open(configs_path, "r")
+    if file then
+        local content = file:read("*all")
+        file:close()
+        local data = json.decode(content)
+        if data then
+            SongService.config.clients = {}
+            -- Pour chaque config d'alt
+            for config_key, config in pairs(data) do
+                local alt_name = config.alt_name
+                -- Config automatique basée sur les rôles
+                if alt_name == SongService.config.healerCharacter then
+                    -- Healer reçoit les mage songs (Ballad + Paeon)
+                    SongService.config.clients[alt_name] = {
+                        "Mage's Ballad II",
+                        "Army's Paeon IV"
+                    }
+                    log("Configured healer " .. alt_name .. " with mage songs")
+                elseif alt_name == SongService.config.mainCharacter then
+                    -- Main reçoit les melee songs (Minuet + Madrigal)
+                    SongService.config.clients[alt_name] = {
+                        "Valor Minuet IV",
+                        "Sword Madrigal"
+                    }
+                    log("Configured main " .. alt_name .. " with melee songs")
+                end
+            end
+            
+            local count = 0
+            for _ in pairs(SongService.config.clients) do count = count + 1 end
+            log("Song configs loaded for " .. count .. " clients")
+            return true
+        end
+    end
+    log("ERROR: Could not load song configs from " .. configs_path)
+    return false
+end
+
+-- 🆕 Nouvelle fonction init() universelle
+function SongService.load_config()
+    log("🎵 Universal SongService initializing...")
+    
+    -- Paramètres par défaut
+    SongService.config.followDistance = 0.75
+    SongService.config.checkInterval = 30
+    
+    -- Charger les rôles automatiquement
+    if not SongService.load_party_roles() then
+        log("ERROR: Failed to load party roles")
         return false
     end
     
-    local content = file:read("*all")
-    file:close()
+    -- Détecter le rôle automatiquement  
+    SongService.role = SongService.detect_role()
     
-    local data = json.decode(content)
-    if not data or not data.SongService then
-        log("ERROR: SongService config not found in JSON")
-        return false
+    -- Si c'est un BRD, charger les configs de songs
+    if SongService.role == "BARD" then
+        if not SongService.load_song_configs() then
+            log("ERROR: Failed to load song configs")
+            return false
+        end
     end
     
-    local cfg = data.SongService
-    SongService.config.mainCharacter = cfg.mainCharacter or ""
-    SongService.config.healerCharacter = cfg.healerCharacter or ""
-    SongService.config.bardName = cfg.bardName or ""
-    SongService.config.clients = cfg.clients or {}
-    SongService.config.followDistance = cfg.followDistance or 0.75
-    SongService.config.checkInterval = cfg.checkInterval or 30
-    
-    log("Config loaded:")
-    log("  Main: " .. SongService.config.mainCharacter)
-    log("  Healer: " .. SongService.config.healerCharacter)
-    log("  Bard: " .. SongService.config.bardName)
-    
-    local client_names = {}
-    for name, _ in pairs(SongService.config.clients) do
-        table.insert(client_names, name)
-    end
-    log("  Clients: " .. table.concat(client_names, ", "))
-    
+    log("✅ SongService initialized as " .. tostring(SongService.role))
     return true
 end
 
@@ -98,11 +150,12 @@ function SongService.detect_role()
     
     -- Détecter automatiquement le Bard par son job
     if player.main_job == 'BRD' then
-        log("Auto-detected as BARD (job: BRD)")
+        log("AUTO-DETECTED as BARD (job: BRD)")
         -- Mettre à jour le nom du bard dans la config
         SongService.config.bardName = player.name
         return "BARD"
     elseif SongService.config.clients[player.name] then
+        log("AUTO-DETECTED as CLIENT")
         return "CLIENT"
     end
     
@@ -299,13 +352,23 @@ function SongService.bard_update()
     if #SongService.song_queue > 0 then
         -- Prendre le prochain target si pas de target actuelle
         if not SongService.current_target then
-            -- Trouver le prochain target avec des songs
-            for target, _ in pairs(SongService.requests_by_target) do
-                if target ~= SongService.config.bardName and not target:find("_queued") then
-                    SongService.current_target = target
-                    SongService.cast_phase = "MOVING_TO_TARGET"
-                    log("Moving to " .. target .. " to cast songs")
-                    break
+            -- 🆕 PRIORITÉ : Traiter le healer en premier
+            local healer_name = SongService.config.healerCharacter
+            
+            -- Vérifier si le healer a des requêtes en attente
+            if healer_name and SongService.requests_by_target[healer_name] and not healer_name:find("_queued") then
+                SongService.current_target = healer_name
+                SongService.cast_phase = "MOVING_TO_TARGET"
+                log("PRIORITY: Moving to healer " .. healer_name .. " first")
+            else
+                -- Sinon, prendre n'importe quel autre target
+                for target, _ in pairs(SongService.requests_by_target) do
+                    if target ~= SongService.config.bardName and not target:find("_queued") then
+                        SongService.current_target = target
+                        SongService.cast_phase = "MOVING_TO_TARGET"
+                        log("Moving to " .. target .. " to cast songs")
+                        break
+                    end
                 end
             end
             if not SongService.current_target then return end

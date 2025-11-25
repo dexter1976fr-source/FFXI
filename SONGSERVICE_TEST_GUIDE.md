@@ -1,4 +1,4 @@
-# 🎵 SongService - Guide de Test
+# 🎵 SongService - Guide de Test (Version 2.0 - Universelle)
 
 ## Architecture Pull-Based
 
@@ -9,29 +9,32 @@
 - ✅ Pas besoin de PartyBuffs ou serveur Python pour la détection
 - ✅ Queue FIFO pour gérer les requêtes
 - ✅ Bard suit le healer quand pas de requête
+- ✅ **NOUVEAU** : Configuration 100% universelle
+- ✅ **NOUVEAU** : Auto-détection du rôle (BRD/CLIENT)
+- ✅ **NOUVEAU** : Priorité automatique au healer
 
 ---
 
-## Configuration
+## Configuration Universelle
 
-**Fichier :** `Windower4/addons/AltControl/data/autocast_config.json`
+### Fichiers utilisés
 
+**1. `data_json/party_roles.json`** - Définit qui est qui
 ```json
 {
-  "SongService": {
-    "mainCharacter": "Dexterbrown",
-    "healerCharacter": "Deedeebrown",
-    "bardName": "Bardbrown",
-    "clients": {
-      "Dexterbrown": ["Valor Minuet IV", "Sword Madrigal"],
-      "Deedeebrown": ["Mage's Ballad II", "Army's Paeon IV"]
-    },
-    "followDistance": 0.75
-  }
+  "main_character": "Dexterbrown",
+  "alt1": "Deedeebrown",  // ← Healer
+  "alt2": "Debybrown"     // ← Bard
 }
 ```
 
-**Important :** Adapter les noms et songs à ta config !
+**2. `data_json/alt_configs.json`** - Existe déjà, utilisé pour détecter les alts
+
+**3. Songs configurés automatiquement :**
+- **Healer** : Mage's Ballad II + Army's Paeon IV
+- **Main** : Valor Minuet IV + Sword Madrigal
+
+**Important :** Plus besoin de configurer les songs manuellement ! Le système les assigne automatiquement selon le rôle.
 
 ---
 
@@ -60,8 +63,27 @@
 ```
 
 **Tu devrais voir :**
-- **Bard :** `Role: BARD`, `State: IDLE`
-- **Clients :** `Role: CLIENT`
+
+**Sur le Bard (Debybrown) :**
+```
+[SongService] 🎵 Universal SongService initializing...
+[SongService] Party roles loaded: Main=Dexterbrown, Healer=Deedeebrown, Bard=Debybrown
+[SongService] AUTO-DETECTED as BARD (job: BRD)
+[SongService] Configured healer Deedeebrown with mage songs
+[SongService] Configured main Dexterbrown with melee songs
+[SongService] ✅ SongService initialized as BARD
+[SongService] Role: BARD
+[SongService] State: IDLE
+```
+
+**Sur les Clients (Dexterbrown, Deedeebrown) :**
+```
+[SongService] 🎵 Universal SongService initializing...
+[SongService] Party roles loaded: Main=Dexterbrown, Healer=Deedeebrown, Bard=Debybrown
+[SongService] AUTO-DETECTED as CLIENT
+[SongService] ✅ SongService initialized as CLIENT
+[SongService] Role: CLIENT
+```
 
 ### 4. Engage un mob avec le Main
 ```
@@ -72,33 +94,39 @@
 
 ### 5. Observer le comportement
 
-**Bard (Bardbrown) :**
+**Bard (Debybrown) :**
 - Hors combat → suit Main
 - Combat + queue vide → **suit Healer** ✅
-- Combat + requête → va vers client, cast, retourne healer
+- Combat + requête → **traite le healer en PRIORITÉ**, puis les autres
+- Retourne suivre le healer après chaque cast
 
 **Clients (Dexterbrown, Deedeebrown) :**
 - Hors combat → rien
-- Combat → checkent buffs toutes les 30s
-- Buff manquant → envoient `/tell Bardbrown //ac songrequest [nom]`
+- Combat → checkent buffs avec délai initial :
+  - **Healer** : check à 5s, puis toutes les 30s
+  - **Main** : check à 20s, puis toutes les 30s
+- Buff manquant → envoient requête au Bard
 
 ### 6. Logs à surveiller
 
-**Sur le Bard :**
+**Sur le Bard (Debybrown) :**
 ```
-[SongService] Added request from Dexterbrown (queue: 1)
-[SongService] Serving: Dexterbrown
-[SongService] Casting 2 songs on Dexterbrown
-  → Valor Minuet IV
-  → Sword Madrigal
-[SongService] Finished casting on Dexterbrown
-[SongService] Returning to healer
-[SongService] Queue empty → STANDBY (following healer)
+[SongService] Queued 2 songs for Deedeebrown
+[SongService] PRIORITY: Moving to healer Deedeebrown first
+[SongService] Arrived at Deedeebrown, starting cast sequence
+[SongService] Casting: Mage's Ballad II for Deedeebrown (remaining: 1)
+[SongService] Casting: Army's Paeon IV for Deedeebrown (remaining: 0)
+[SongService] Finished casting for Deedeebrown
+[SongService] Queued 2 songs for Dexterbrown
+[SongService] Moving to Dexterbrown to cast songs
+[SongService] Casting: Valor Minuet IV for Dexterbrown (remaining: 1)
+[SongService] Casting: Sword Madrigal for Dexterbrown (remaining: 0)
+[SongService] No songs to cast → STANDBY
 ```
 
 **Sur les Clients :**
 ```
-[SongService] Missing: Valor Minuet IV → requesting
+[SongService] Missing buffs: Mage's Ballad II, Army's Paeon IV → requesting ALL songs
 ```
 
 ### 7. Arrêter SongService
@@ -167,13 +195,15 @@
 
 ---
 
-## Prochaines Améliorations
+## Améliorations Version 2.0
 
-- [ ] Priorité dans la queue (healer > DPS)
-- [ ] Cooldown entre requêtes (éviter spam)
-- [ ] Détection automatique du Bard (pas besoin de config)
-- [ ] Support multi-bards
-- [ ] Interface webapp pour voir la queue
+- [x] ✅ Priorité dans la queue (healer > DPS)
+- [x] ✅ Détection automatique du Bard (par job BRD)
+- [x] ✅ Configuration universelle (party_roles.json)
+- [x] ✅ Auto-configuration des songs selon le rôle
+- [ ] ⏳ Support multi-bards
+- [ ] ⏳ Interface webapp pour voir la queue
+- [ ] ⏳ Cooldown entre requêtes (éviter spam)
 
 ---
 
