@@ -20,6 +20,7 @@ local distancefollow = nil
 local altpetoverlay = nil
 local bardcycle = nil
 local partybuffs = nil  -- Module de récupération des buffs de party
+local songservice = nil  -- Module SongService (pull-based bard system)
 
 -- Charger PartyBuffs automatiquement au démarrage (module de base)
 local function init_partybuffs()
@@ -211,6 +212,39 @@ windower.register_event('addon command', function(command, ...)
                 print('[PartyBuffs] ---')
             end
             print('[PartyBuffs] ========================================')
+        end
+        
+    elseif command == 'songservice' then
+        -- Commandes SongService: //ac songservice start/stop/status
+        local action = select(1, ...) and select(1, ...):lower()
+        
+        if not songservice then
+            print('[AltControl] Loading SongService tool...')
+            songservice = load_tool('SongService')
+            if songservice then
+                songservice.init()
+                print('[AltControl] ✅ SongService tool loaded')
+            else
+                print('[AltControl] ❌ Failed to load SongService tool')
+                return
+            end
+        end
+        
+        if action == 'start' then
+            songservice.start()
+        elseif action == 'stop' then
+            songservice.stop()
+        elseif action == 'status' then
+            songservice.status()
+        else
+            print('[AltControl] Usage: //ac songservice start|stop|status')
+        end
+    
+    elseif command == 'songrequest' then
+        -- Requête de song (reçue par le Bard)
+        local requester = select(1, ...)
+        if songservice and requester then
+            songservice.add_request(requester)
         end
         
     elseif command == 'bardcycle' then
@@ -1134,6 +1168,11 @@ windower.register_event('prerender', function()
     -- AltPetOverlay check socket chaque frame
     if altpetoverlay then
         altpetoverlay.update()
+    end
+    
+    -- SongService update chaque frame
+    if songservice and songservice.active then
+        songservice.update()
     end
     
     -- BardCycle update chaque frame

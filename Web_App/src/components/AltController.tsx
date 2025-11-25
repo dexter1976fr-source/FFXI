@@ -56,6 +56,9 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
   
   // 🎵 AutoCast: État du système d'automatisation
   const [autoCastActive, setAutoCastActive] = useState(false);
+  
+  // 🎵 SongService: État du système pull-based
+  const [songServiceActive, setSongServiceActive] = useState(false);
 
   // Configuration filtrée
   const [configuredSpells, setConfiguredSpells] = useState<any[]>([]);
@@ -396,6 +399,22 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
     sendCommand(newState ? "/mount chocobo" : "/dismount");
   };
 
+  /**
+   * 🎵 SongService: Toggle le système pull-based
+   */
+  const toggleSongService = async () => {
+    const newState = !songServiceActive;
+    setSongServiceActive(newState);
+    
+    if (newState) {
+      console.log('[SongService] Starting on all alts');
+      await sendCommand('//send @all ac songservice start');
+    } else {
+      console.log('[SongService] Stopping on all alts');
+      await sendCommand('//send @all ac songservice stop');
+    }
+  };
+  
   /**
    * 🎵 AutoCast: Toggle le système d'automatisation
    */
@@ -1013,7 +1032,15 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
             variant="primary"
           />
           
-          {/* 🎵 BRD AutoCast (remplace Engage) */}
+          {/* 🎵 SongService (TOUS les alts - système pull-based) */}
+          <CommandButton
+            label={songServiceActive ? "🎶 Songs: ON" : "🎶 Songs: OFF"}
+            icon={<Wand2 />}
+            onClick={toggleSongService}
+            variant={songServiceActive ? "success" : "primary"}
+          />
+          
+          {/* 🎵 BRD AutoCast (remplace Engage) - DEPRECATED, utiliser SongService */}
           {altData.main_job === 'BRD' && (
             <CommandButton
               label={autoCastActive ? "🎵 Auto: ON" : "🎵 Auto: OFF"}

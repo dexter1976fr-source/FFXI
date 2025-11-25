@@ -10,5 +10,15 @@
       "Valor Minuet V",
       "Valor Minuet IV"
     ]
+  },
+  "SongService": {
+    "mainCharacter": "Dexterbrown",
+    "healerCharacter": "Deedeebrown",
+    "bardName": "Bardbrown",
+    "clients": {
+      "Dexterbrown": ["Valor Minuet IV", "Sword Madrigal"],
+      "Deedeebrown": ["Mage's Ballad II", "Army's Paeon IV"]
+    },
+    "followDistance": 0.75
   }
 }
