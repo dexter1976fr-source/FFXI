@@ -1,64 +1,111 @@
-# 🚀 START HERE - AutoCast BRD
+# 🚀 START HERE - FFXI Alt Control
 
-## ✨ C'est Prêt!
+## 🧹 PROJET NETTOYÉ - 25 NOV 2025
 
-Le système **AutoCast** pour le **BRD** est implémenté et déployé!
+Le projet a été **complètement nettoyé** ! 
+- ✅ 101 fichiers supprimés
+- ✅ Structure claire et logique
+- ✅ Un seul système BRD (SongService)
+- ✅ Documentation à jour
 
 ---
 
-## 🎯 Test Rapide (5 minutes)
+## 📚 NAVIGATION RAPIDE
 
-### 1. Recharger l'addon dans FFXI
+### 🎯 Nouveau sur le projet ?
+→ **[GUIDE_DEMARRAGE_RAPIDE.md](GUIDE_DEMARRAGE_RAPIDE.md)** - Démarrage en 5 minutes
+
+### 📖 Voir toute la documentation
+→ **[INDEX_DOCUMENTATION.md](INDEX_DOCUMENTATION.md)** - Index complet
+
+### 🧹 Comprendre le nettoyage
+→ **[NETTOYAGE_COMPLET_25NOV.md](NETTOYAGE_COMPLET_25NOV.md)** - Détails du nettoyage
+→ **[AVANT_APRES_NETTOYAGE.md](AVANT_APRES_NETTOYAGE.md)** - Comparaison visuelle
+
+### 🎵 Système BRD
+→ **[SONGSERVICE_TEST_GUIDE.md](SONGSERVICE_TEST_GUIDE.md)** - Guide complet SongService
+
+### ✅ Tester le projet
+→ **[TEST_APRES_NETTOYAGE.md](TEST_APRES_NETTOYAGE.md)** - Tests de validation
+
+---
+
+## ⚡ DÉMARRAGE ULTRA-RAPIDE
+
+### 1. Lancer le serveur Python
+```bash
+python FFXI_ALT_Control.py
 ```
-//lua r AltControl
+
+### 2. Dans FFXI, charger l'addon
+```
+//lua load altcontrol
 ```
 
-### 2. Lancer le serveur Python
-Double-cliquer sur `FFXI_ALT_Control.py` → Cliquer "ON / OFF Servers"
-
-### 3. Ouvrir la WebApp
-Navigateur: `http://localhost:5000`
-
-### 4. Activer AutoCast
-- Sélectionner le BRD
-- Cliquer sur **"🎵 Auto: OFF"**
-- Le bouton devient vert: **"🎵 Auto: ON"**
-
-### 5. Observer
-Le BRD va:
-- Chercher un healer dans la party
-- Se déplacer vers lui (12-18 yalms)
-- S'arrêter à la bonne distance
+### 3. Tester SongService
+```
+//ac songservice status
+//ac songservice start
+```
 
 ---
 
-## 📚 Documentation
+## 📁 STRUCTURE DU PROJET
 
-| Fichier | Description |
-|---------|-------------|
-| **GUIDE_DEMARRAGE_AUTOCAST.md** | 👈 **COMMENCE ICI** |
-| test_autocast.md | Checklist de test complète |
-| docs/AUTOCAST_SYSTEM.md | Guide technique détaillé |
-| TODO_AUTOCAST.md | Ce qui reste à faire |
-
----
-
-## 🐛 Problème?
-
-1. Vérifier `GUIDE_DEMARRAGE_AUTOCAST.md` section "Problèmes Possibles"
-2. Vérifier les logs dans FFXI
-3. Vérifier la console web (F12)
-
----
-
-## 🎉 Bon Test!
-
-**Le plus dur est fait!** L'architecture est en place, modulaire et propre.
-
-Ajouter d'autres jobs (WHM, RDM, SCH) sera beaucoup plus rapide maintenant.
+```
+FFXI_ALT_Control/
+├── AltControl.lua              # Core
+├── AltControlExtended.lua      # Extended
+├── AutoCast.lua                # Loader
+├── tools/
+│   ├── SongService.lua         # BRD system ⭐
+│   ├── AltPetOverlay.lua       # Pet overlay
+│   ├── DistanceFollow.lua      # Follow
+│   ├── PartyBuffs.lua          # Buffs
+│   └── AutoEngage.lua          # Engage
+├── data_json/
+│   └── autocast_config.json    # Config
+└── archive/                    # Backups
+```
 
 ---
 
-**Version:** 1.0.0  
-**Date:** 18 novembre 2025  
-**Status:** ✅ Prêt à tester
+## 🎯 FICHIERS ESSENTIELS
+
+- **3 fichiers Lua core** (AltControl, Extended, AutoCast)
+- **5 fichiers tools** (SongService, Overlay, Follow, Buffs, Engage)
+- **13 fichiers documentation** (guides, tests, architecture)
+- **4 scripts Python** (serveur, fixes SCH)
+
+**Total : ~25 fichiers essentiels** (vs 120+ avant nettoyage)
+
+---
+
+## ✅ AVANTAGES DU NETTOYAGE
+
+- ✅ **Plus de conflits** - Un seul système BRD
+- ✅ **Code maintenable** - Structure claire
+- ✅ **Moins de bugs** - Pas de doublons
+- ✅ **Navigation facile** - Documentation organisée
+- ✅ **Backups sécurisés** - Tout archivé
+
+---
+
+## 🆘 BESOIN D'AIDE ?
+
+1. **Documentation complète** : [INDEX_DOCUMENTATION.md](INDEX_DOCUMENTATION.md)
+2. **Guide rapide** : [GUIDE_DEMARRAGE_RAPIDE.md](GUIDE_DEMARRAGE_RAPIDE.md)
+3. **Tests** : [TEST_APRES_NETTOYAGE.md](TEST_APRES_NETTOYAGE.md)
+4. **Architecture** : [REFACTORING_ARCHITECTURE.md](REFACTORING_ARCHITECTURE.md)
+
+---
+
+## 🎉 PRÊT À DÉVELOPPER !
+
+**Le projet est maintenant propre, organisé et prêt pour le développement ! ✨**
+
+---
+
+**Version:** 2.0.0 (Après nettoyage)
+**Date:** 25 novembre 2025  
+**Status:** ✅ Nettoyé et testé

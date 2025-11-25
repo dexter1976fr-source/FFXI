@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Target, Swords, Wand2, Zap, Sword, Dog, Rabbit, UserPlus, Navigation, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { Target, Swords, Wand2, Zap, Sword, Dog, Rabbit, UserPlus, Navigation, Wifi, WifiOff, RefreshCw, Music } from 'lucide-react';
 import CommandButton from "./CommandButton";
 import CommandButtonWithRecast from "./CommandButtonWithRecast";
 import DirectionalPad from "./DirectionalPad";
@@ -53,9 +53,6 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
       setSchAutoCastActive(!newState); // Rollback en cas d'erreur
     }
   };
-  
-  // 🎵 AutoCast: État du système d'automatisation
-  const [autoCastActive, setAutoCastActive] = useState(false);
   
   // 🎵 SongService: État du système pull-based
   const [songServiceActive, setSongServiceActive] = useState(false);
@@ -374,7 +371,7 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
   if (newState) {
     // Récupérer le main character depuis party_roles
     try {
-      const roles = await backendService.getPartyRoles();
+      const roles = await backendService.fetchPartyRoles();
       const mainCharacter = roles.main_character || 'Dexterbrown'; // Fallback
       
       // Follow ON : mode "combat" qui recule automatiquement quand le main engage
@@ -415,108 +412,6 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
     }
   };
   
-  /**
-   * 🎵 AutoCast: Toggle le système d'automatisation
-   */
-  const toggleAutoCast = async () => {
-    const newState = !autoCastActive;
-    setAutoCastActive(newState);
-    
-    if (newState) {
-      console.log(`[AutoCast] Starting for ${altData?.alt_name} (${altData?.main_job})`);
-      
-      // 🎵 Pour le BRD: Démarrer BardCycle (tout en Lua)
-      if (altData?.main_job === 'BRD') {
-        // Désactiver le Follow natif d'abord (BardCycle gère son propre follow)
-        if (followActive) {
-          console.log('[AutoCast] Disabling native Follow for BRD');
-          setFollowActive(false);
-          await sendCommand("//ac dfollow stop");
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-        
-        await sendCommand(`//ac bardcycle start`);
-        console.log('[AutoCast] ✅ BardCycle started (Lua tool)');
-      } else {
-        // Autres jobs: démarrer AutoCast classique
-        await sendCommand(`//ac start`);
-        console.log(`[AutoCast] ✅ Started`);
-      }
-      
-      // 🆕 AUTO-DÉTECTION DU HEALER
-      if (altData?.party && altData.party.length > 0) {
-        try {
-          // Récupérer tous les ALTs pour connaître leurs jobs
-          const allAlts = await backendService.fetchAllAlts();
-          
-          // Liste des Trusts healers connus (par ordre de priorité)
-          const trustHealers = [
-            'mildaurion',        // 🌟 BEST healer!
-            'apururu', 'kupipi', 'yoran-oran', 'cherukiki', 'joachim',
-            'koru-moru', 'ajido-marujido', 'karaha-baruha', 'romaa mihgo',
-            'star sibyl', 'ulmia', 'qultada', 'adelheid', 'sylvie',
-            'monberaux', 'valaineral'
-          ];
-          
-          // Chercher un healer dans la party
-          const healerJobs = ['WHM', 'RDM', 'SCH'];
-          let healerName = null;
-          
-          for (const memberName of altData.party) {
-            // 1. Vérifier si c'est un ALT healer
-            const memberAlt = allAlts.find(alt => alt.name === memberName);
-            if (memberAlt && healerJobs.includes(memberAlt.main_job)) {
-              healerName = memberName;
-              console.log(`[AutoCast] 🏥 Found ALT healer: ${healerName} (${memberAlt.main_job})`);
-              break;
-            }
-            
-            // 2. Vérifier si c'est un Trust healer (case insensitive)
-            const nameLower = memberName.toLowerCase();
-            if (trustHealers.some(trust => nameLower.includes(trust))) {
-              healerName = memberName;
-              console.log(`[AutoCast] 🏥 Found Trust healer: ${healerName}`);
-              break;
-            }
-          }
-          
-          if (healerName) {
-            // Envoyer la commande follow automatiquement
-            await new Promise(resolve => setTimeout(resolve, 500)); // Attendre 0.5s
-            await sendCommand(`//ac follow ${healerName}`);
-            console.log(`[AutoCast] ✅ Auto-following healer: ${healerName}`);
-          } else {
-            console.log(`[AutoCast] ⚠️ No healer found in party, following <p1>`);
-          }
-        } catch (error) {
-          console.error('[AutoCast] Error finding healer:', error);
-        }
-      }
-    } else {
-      console.log(`[AutoCast] Stopping for ${altData?.alt_name}`);
-      
-      // 🎵 Pour le BRD: Arrêter BardCycle
-      if (altData?.main_job === 'BRD') {
-        await sendCommand(`//ac bardcycle stop`);
-        console.log('[AutoCast] ✅ BardCycle stopped');
-      }
-      
-      // Arrêter le follow d'abord
-      await sendCommand(`//ac stopfollow`);
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
-      // Pour le BRD: Désactiver auto-songs et debuffs avant de stop
-      if (altData?.main_job === 'BRD') {
-        await sendCommand(`//ac disable_auto_songs`);
-        await new Promise(resolve => setTimeout(resolve, 200));
-        await sendCommand(`//ac disable_debuffs`);
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
-      
-      await sendCommand(`//ac stop`);
-    }
-  };
-
   /**
    * 🆕 CORRECTION: Walk/Run toggle - Simule l'appui+relâchement de la touche /
    */
@@ -998,6 +893,13 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
             onClick={() => setShowSpells(!showSpells)}
             variant="primary"
           />
+          {/* 🎵 SongService (TOUS les alts - système pull-based) */}
+          <CommandButton
+            label={songServiceActive ? "🎶 Songs: ON" : "🎶 Songs: OFF"}
+            icon={<Music />}
+            onClick={toggleSongService}
+            variant={songServiceActive ? "success" : "primary"}
+          />
           <CommandButton
             label="Abilities"
             icon={<Zap />}
@@ -1031,24 +933,6 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
             onClick={handleWalkRun}
             variant="primary"
           />
-          
-          {/* 🎵 SongService (TOUS les alts - système pull-based) */}
-          <CommandButton
-            label={songServiceActive ? "🎶 Songs: ON" : "🎶 Songs: OFF"}
-            icon={<Wand2 />}
-            onClick={toggleSongService}
-            variant={songServiceActive ? "success" : "primary"}
-          />
-          
-          {/* 🎵 BRD AutoCast (remplace Engage) - DEPRECATED, utiliser SongService */}
-          {altData.main_job === 'BRD' && (
-            <CommandButton
-              label={autoCastActive ? "🎵 Auto: ON" : "🎵 Auto: OFF"}
-              icon={<Wand2 />}
-              onClick={toggleAutoCast}
-              variant={autoCastActive ? "success" : "primary"}
-            />
-          )}
           
           {/* 📚 SCH AutoCast (en plus de Follow) */}
           {altData.main_job === 'SCH' && (

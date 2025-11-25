@@ -14,11 +14,9 @@ local base_port = 5007
 -- 🔹 TOOLS MODULES (chargés à la demande)
 ----------------------------------------------------------
 
-local autocast = nil
 local autoengage = nil
 local distancefollow = nil
 local altpetoverlay = nil
-local bardcycle = nil
 local partybuffs = nil  -- Module de récupération des buffs de party
 local songservice = nil  -- Module SongService (pull-based bard system)
 
@@ -55,75 +53,14 @@ function load_tool(tool_name)
 end
 
 ----------------------------------------------------------
--- 🔹 AUTO CAST MODULE (chargé à la demande)
-----------------------------------------------------------
-
-function load_autocast()
-    if not autocast then
-        local success, module = pcall(require, 'AutoCast')
-        if success then
-            autocast = module
-            print('[AltControl] ✅ AutoCast module loaded')
-            return true
-        else
-            print('[AltControl] ❌ Failed to load AutoCast:', module)
-            return false
-        end
-    end
-    return true
-end
-
-function start_autocast(config_json)
-    print('[AltControl] 🐛 start_autocast() called')
-    if load_autocast() then
-        print('[AltControl] 🐛 AutoCast module loaded, calling start()')
-        local result = autocast.start(config_json)
-        print('[AltControl] 🐛 autocast.start() returned: '..tostring(result))
-        return result
-    else
-        print('[AltControl] ❌ Failed to load AutoCast module')
-    end
-    return false
-end
-
-function stop_autocast()
-    -- Arrêter tout mouvement immédiatement
-    windower.ffxi.run(false)
-    
-    if load_autocast() then
-        autocast.stop()
-    end
-end
-
-----------------------------------------------------------
 -- 🔹 COMMANDES ADDON
 ----------------------------------------------------------
 
 windower.register_event('addon command', function(command, ...)
     command = command and command:lower() or nil
     
-    if command == 'start' then
-        -- Démarrer AutoCast avec config par défaut
-        print('[AltControl] Starting AutoCast...')
-        if start_autocast() then
-            print('[AltControl] ✅ AutoCast started')
-        else
-            print('[AltControl] ❌ Failed to start AutoCast')
-        end
-        
-    elseif command == 'stop' then
-        -- Arrêter AutoCast
-        print('[AltControl] Stopping AutoCast...')
-        stop_autocast()
-        print('[AltControl] ✅ AutoCast stopped')
-        
-    elseif command == 'status' then
+    if command == 'status' then
         -- Afficher le status
-        if autocast and autocast.is_active() then
-            print('[AltControl] AutoCast is ACTIVE')
-        else
-            print('[AltControl] AutoCast is INACTIVE')
-        end
         if autoengage and autoengage.is_active() then
             print('[AltControl] AutoEngage is ACTIVE')
         else
@@ -247,30 +184,6 @@ windower.register_event('addon command', function(command, ...)
             songservice.add_request(requester)
         end
         
-    elseif command == 'bardcycle' then
-        -- Commandes BardCycle: //ac bardcycle start/stop
-        local action = select(1, ...) and select(1, ...):lower()
-        
-        if not bardcycle then
-            print('[AltControl] Loading BardCycle tool...')
-            bardcycle = load_tool('BardCycle')
-            if bardcycle then
-                bardcycle.init()
-                print('[AltControl] ✅ BardCycle tool loaded')
-            else
-                print('[AltControl] ❌ Failed to load BardCycle tool')
-                return
-            end
-        end
-        
-        if action == 'start' then
-            bardcycle.start()
-        elseif action == 'stop' then
-            bardcycle.stop()
-        else
-            print('[AltControl] Usage: //ac bardcycle start|stop')
-        end
-        
     elseif command == 'dfollow' then
         -- Commandes DistanceFollow: //ac dfollow [target] [mode]
         if not distancefollow then
@@ -306,16 +219,6 @@ windower.register_event('addon command', function(command, ...)
             end
             
             print('[AltControl] Following: '..target_name..' (distance='..distance..')')
-            
-            if autocast and autocast.is_active() then
-                local player = windower.ffxi.get_player()
-                if player and player.main_job == 'BRD' then
-                    local job_module = autocast.job_modules and autocast.job_modules['BRD']
-                    if job_module and job_module.follow then
-                        job_module.follow(target_name, distance)
-                    end
-                end
-            end
         else
             print('[AltControl] Usage: //ac follow [name] [distance]')
         end
@@ -338,175 +241,6 @@ windower.register_event('addon command', function(command, ...)
             windower.send_command('input /ma "'..spell..'" '..target)
         end
     
-    elseif command == 'queue_song' then
-        -- Mettre un song en queue: //ac queue_song [song] [target]
-        local args = {...}
-        if #args >= 1 then
-            local song = args[1]
-            local target = args[2] or '<me>'
-            
-            print('[AltControl] 🐛 queue_song command received: '..song)
-            
-            if not autocast then
-                print('[AltControl] ❌ autocast not loaded')
-                return
-            end
-            
-            if not autocast.is_active() then
-                print('[AltControl] ❌ autocast not active')
-                return
-            end
-            
-            local player = windower.ffxi.get_player()
-            if not player then
-                print('[AltControl] ❌ player not found')
-                return
-            end
-            
-            if player.main_job ~= 'BRD' then
-                print('[AltControl] ❌ not BRD (job='..player.main_job..')')
-                return
-            end
-            
-            local job_module = autocast.job_modules and autocast.job_modules['BRD']
-            if not job_module then
-                print('[AltControl] ❌ BRD module not loaded')
-                return
-            end
-            
-            if not job_module.queue_song then
-                print('[AltControl] ❌ queue_song function not found')
-                return
-            end
-            
-            job_module.queue_song(song, target)
-            print('[AltControl] ✅ Song queued: '..song)
-        end
-        
-    elseif command == 'enable_auto_songs' then
-        -- Activer le cycle automatique des chansons (BRD)
-        if autocast and autocast.is_active() then
-            local player = windower.ffxi.get_player()
-            if player and player.main_job == 'BRD' then
-                autocast.config.auto_songs = true
-                print('[AltControl] ✅ Auto-songs ENABLED')
-                print('[AltControl] 🐛 DEBUG: config.auto_songs = '..tostring(autocast.config.auto_songs))
-            else
-                print('[AltControl] ⚠️ Auto-songs only for BRD (current job: '..(player and player.main_job or 'unknown')..')')
-            end
-        else
-            print('[AltControl] ⚠️ AutoCast not active, use //ac start first')
-        end
-        
-    elseif command == 'disable_auto_songs' then
-        -- Désactiver le cycle automatique des chansons
-        if autocast and autocast.is_active() then
-            autocast.config.auto_songs = false
-            print('[AltControl] ❌ Auto-songs DISABLED')
-        end
-        
-    elseif command == 'enable_debuffs' then
-        -- Activer les debuffs sur les mobs (BRD)
-        if autocast and autocast.is_active() then
-            local player = windower.ffxi.get_player()
-            if player and player.main_job == 'BRD' then
-                autocast.config.use_debuffs = true
-                print('[AltControl] ✅ Debuffs ENABLED')
-            else
-                print('[AltControl] ⚠️ Debuffs only for BRD')
-            end
-        end
-        
-    elseif command == 'disable_debuffs' then
-        -- Désactiver les debuffs
-        if autocast and autocast.is_active() then
-            autocast.config.use_debuffs = false
-            print('[AltControl] ❌ Debuffs DISABLED')
-        end
-        
-    elseif command == 'cast_mage_songs' then
-        -- Forcer le cast des songs mages
-        print('[AltControl] 📥 Received cast_mage_songs command')
-        if not autocast then
-            print('[AltControl] ❌ AutoCast module not loaded')
-        elseif not autocast.is_active then
-            print('[AltControl] ❌ AutoCast.is_active function missing!')
-        elseif not autocast.is_active() then
-            print('[AltControl] ❌ AutoCast not active')
-            print('[AltControl] 🐛 DEBUG: autocast.active = '..tostring(autocast.active))
-        else
-            local player = windower.ffxi.get_player()
-            if player and player.main_job == 'BRD' then
-                print('[AltControl] ✅ Calling autocast.force_cast_mages()')
-                autocast.force_cast_mages()
-            else
-                print('[AltControl] ❌ Not a BRD or player not found')
-            end
-        end
-        
-    elseif command == 'cast_melee_songs' then
-        -- Forcer le cast des songs melees
-        if autocast and autocast.is_active() then
-            local player = windower.ffxi.get_player()
-            if player and player.main_job == 'BRD' then
-                autocast.force_cast_melees()
-                print('[AltControl] 🎵 Casting melee songs...')
-            end
-        end
-        
-    elseif command:sub(1, 16) == 'set_brd_healer ' then
-        local target = command:sub(17)
-        if autocast and autocast.set_brd_healer then
-            autocast.set_brd_healer(target)
-            print('[AltControl] ✅ BRD Healer target: '..target)
-        end
-        
-    elseif command:sub(1, 15) == 'set_brd_melee ' then
-        local target = command:sub(16)
-        if autocast and autocast.set_brd_melee then
-            autocast.set_brd_melee(target)
-            print('[AltControl] ✅ BRD Melee target: '..target)
-        end
-        
-    elseif command:sub(1, 21) == 'set_brd_mage_song1 ' then
-        local song = command:sub(22)
-        if autocast and autocast.set_brd_mage_song then
-            autocast.set_brd_mage_song(1, song)
-            print('[AltControl] ✅ BRD Mage Song 1: '..song)
-        end
-        
-    elseif command:sub(1, 21) == 'set_brd_mage_song2 ' then
-        local song = command:sub(22)
-        if autocast and autocast.set_brd_mage_song then
-            autocast.set_brd_mage_song(2, song)
-            print('[AltControl] ✅ BRD Mage Song 2: '..song)
-        end
-        
-    elseif command:sub(1, 22) == 'set_brd_melee_song1 ' then
-        local song = command:sub(23)
-        if autocast and autocast.set_brd_melee_song then
-            autocast.set_brd_melee_song(1, song)
-            print('[AltControl] ✅ BRD Melee Song 1: '..song)
-        end
-        
-    elseif command:sub(1, 22) == 'set_brd_melee_song2 ' then
-        local song = command:sub(23)
-        if autocast and autocast.set_brd_melee_song then
-            autocast.set_brd_melee_song(2, song)
-            print('[AltControl] ✅ BRD Melee Song 2: '..song)
-        end
-        
-    elseif command == 'reload_brd_config' then
-        -- Recharger la config BRD depuis le fichier
-        if autocast and autocast.reload_brd_config then
-            local success = autocast.reload_brd_config()
-            if success then
-                print('[AltControl] ✅ BRD config reloaded from file')
-            else
-                print('[AltControl] ❌ Failed to reload BRD config')
-            end
-        end
-        
     elseif command == 'debug_pet' then
         -- Toggle pet debug
         pet_debug = not pet_debug
@@ -902,23 +636,14 @@ function send_alt_info()
         end
     end
     
-    -- 🆕 Pour le mouvement, vérifier si AutoCast BRD est actif et utiliser son état
+    -- 🆕 Pour le mouvement, vérifier si SongService BRD est actif et utiliser son état
     local is_moving = false
     local queue_size = 0
-    if autocast and autocast.is_active() then
-        local job_module = autocast.job_modules and autocast.job_modules[player.main_job]
-        if job_module then
-            -- Considérer "en mouvement" si:
-            -- 1. is_moving = true OU
-            -- 2. Moins de 2 secondes depuis le dernier mouvement (sécurité anti-spam)
-            local time_since_movement = os.clock() - (job_module.last_movement_time or 0)
-            is_moving = job_module.is_moving or (time_since_movement < 2.0)
-            
-            -- 🆕 Récupérer la taille de la queue
-            if job_module.song_queue then
-                queue_size = #job_module.song_queue
-            end
-        end
+    if songservice and songservice.active and player.main_job == 'BRD' then
+        -- Utiliser l'état de mouvement de SongService
+        is_moving = songservice.moving or false
+        -- Utiliser la taille de la queue de songs de SongService
+        queue_size = #(songservice.song_queue or {})
     end
     
     local data = {
@@ -937,21 +662,52 @@ function send_alt_info()
         party_engaged = party_engaged,  -- 🆕 Quelqu'un dans la party est en combat
         is_moving = is_moving,
         is_casting = is_casting,
-        queue_size = queue_size,  -- 🆕 Taille de la queue AutoCast
+        queue_size = queue_size,  -- 🆕 Taille de la queue SongService
         active_buffs = active_buffs.names,  -- Noms des buffs (pour compatibilité)
         active_buff_ids = active_buffs.ids,  -- 🆕 IDs des buffs
         ability_recasts = recasts.abilities,
         spell_recasts = recasts.spells
     }
 
-    -- 📤 Envoi TCP vers le serveur principal
-    local client = assert(socket.tcp())
-    client:settimeout(1)
-    local ok, err = client:connect(host, base_port)
-    if ok then
-        local msg = table_to_json(data)
-        client:send(msg)
-        client:close()
+    -- 📤 Envoi TCP vers le serveur principal AVEC PROTECTION ET DEBUG
+    print('[Extended] 🔄 Preparing to send data for ' .. player.name)
+    
+    local success, err = pcall(function()
+        local client = socket.tcp()
+        if not client then 
+            print('[Extended] ❌ Failed to create TCP client')
+            return 
+        end
+        
+        client:settimeout(2.0)  -- Timeout augmenté pour debug
+        print('[Extended] 🔌 Connecting to ' .. host .. ':' .. base_port)
+        local ok, conn_err = client:connect(host, base_port)
+        
+        if ok then
+            print('[Extended] ✅ Connected to server')
+            
+            -- 🆕 PROTECTION contre les erreurs de sérialisation
+            local success_json, msg = pcall(table_to_json, data)
+            if success_json and msg then
+                print('[Extended] 📤 Sending ' .. #msg .. ' bytes to server')
+                client:send(msg)
+                print('[Extended] ✅ Data sent successfully')
+            else
+                print('[Extended] ❌ JSON serialization failed: ' .. tostring(msg))
+                -- Debug: afficher le contenu de data
+                print('[Extended] 🔍 Data content:')
+                for k, v in pairs(data) do
+                    print('[Extended]   ' .. k .. ' = ' .. tostring(v))
+                end
+            end
+            client:close()
+        else
+            print('[Extended] ❌ Server connection failed: ' .. tostring(conn_err))
+        end
+    end)
+    
+    if not success then
+        print('[Extended] ❌ Send error: ' .. tostring(err))
     end
 end
 
@@ -1174,37 +930,11 @@ windower.register_event('prerender', function()
     if songservice and songservice.active then
         songservice.update()
     end
-    
-    -- BardCycle update chaque frame
-    if bardcycle and bardcycle.active then
-        bardcycle.update()
-    end
 end)
 
 ----------------------------------------------------------
--- 🔹 ÉVÉNEMENTS POUR AUTOCAST
+-- 🔹 ÉVÉNEMENTS
 ----------------------------------------------------------
-
-windower.register_event('action', function(action)
-    if autocast and autocast.is_active() then
-        autocast.on_action(action)
-    end
-end)
-
--- 🆕 Détection précoce des casts via packets sortants
-windower.register_event('outgoing chunk', function(id, original, modified, injected, blocked)
-    if blocked or injected then return end
-    
-    if autocast and autocast.is_active() then
-        local player = windower.ffxi.get_player()
-        if not player then return end
-        
-        local job_module = autocast.job_modules and autocast.job_modules[player.main_job]
-        if job_module and job_module.on_outgoing_packet then
-            job_module.on_outgoing_packet(id, modified)
-        end
-    end
-end)
 
 ----------------------------------------------------------
 -- 🔹 FONCTIONS DU MODULE EXTENDED
@@ -1223,13 +953,6 @@ function Extended.initialize()
         local pet_update_counter = 0
         while true do
             send_alt_info()
-            
-            -- Mise à jour AutoCast si actif
-            if autocast then
-                if autocast.is_active() then
-                    autocast.update()
-                end
-            end
             
             -- Mise à jour AutoEngage si actif
             if autoengage then
@@ -1289,11 +1012,6 @@ function Extended.shutdown()
     
     -- Arrêter tout mouvement
     windower.ffxi.run(false)
-    
-    -- Arrêter AutoCast si actif
-    if autocast and autocast.is_active then
-        pcall(function() autocast.stop() end)
-    end
     
     -- Arrêter AutoEngage si actif
     if autoengage and autoengage.is_active then

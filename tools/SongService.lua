@@ -415,9 +415,15 @@ function SongService.start()
     
     log("Role: " .. SongService.role)
     
-    -- Activer le follow sur le main
-    log("Starting follow on: " .. SongService.config.mainCharacter)
-    windower.send_command('input //ac follow ' .. SongService.config.mainCharacter)
+    -- 🔥 IMPORTANT : Désactiver DistanceFollow pour éviter les conflits
+    if SongService.role == "BARD" then
+        log("Disabling DistanceFollow (SongService handles movement)")
+        windower.send_command('input //ac dfollow stop')
+    else
+        -- Clients : activer le follow sur le main
+        log("Starting follow on: " .. SongService.config.mainCharacter)
+        windower.send_command('input //ac follow ' .. SongService.config.mainCharacter)
+    end
     
     log("SongService started!")
     return true
