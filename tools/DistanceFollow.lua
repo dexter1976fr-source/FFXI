@@ -43,16 +43,16 @@ end
 -- UPDATE DES DISTANCES SELON MODE
 ----------------------------------------------------------
 function DistanceFollow.updateDistances(auto_engage_active, target_engaged)
-    -- Logique universelle pour tous les jobs:
-    -- Si AutoEngage OFF ET target engagé → Reculer (mode suivi)
-    -- Sinon → Rester proche (mode combat)
+    -- Logique corrigée:
+    -- Si mode combat ET target engagé → Reculer pour laisser le main combattre
+    -- Sinon → Rester proche
     
-    if not auto_engage_active and target_engaged then
-        -- Mode suivi : le main est en combat mais on ne veut pas engager
+    if auto_engage_active and target_engaged then
+        -- Mode combat: le main est engagé, on recule pour le laisser combattre
         current_min_sq = DistanceFollow.config.follow_min^2
         current_max_sq = DistanceFollow.config.follow_max^2
     else
-        -- Mode combat : rester proche (par défaut ou si on veut engager)
+        -- Rester proche (par défaut ou si le main n'est pas engagé)
         current_min_sq = DistanceFollow.config.combat_min^2
         current_max_sq = DistanceFollow.config.combat_max^2
     end

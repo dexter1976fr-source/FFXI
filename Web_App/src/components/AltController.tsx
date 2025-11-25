@@ -374,8 +374,8 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
       const roles = await backendService.getPartyRoles();
       const mainCharacter = roles.main_character || 'Dexterbrown'; // Fallback
       
-      // Follow ON : mode "follow" qui recule automatiquement quand le main engage
-      const command = `//ac dfollow follow ${mainCharacter}`;
+      // Follow ON : mode "combat" qui recule automatiquement quand le main engage
+      const command = `//ac dfollow combat ${mainCharacter}`;
       console.log(`[Follow] Sending command: ${command}`);
       await sendCommand(command);
     } catch (error) {
@@ -408,6 +408,14 @@ const AltController: React.FC<AltControllerProps> = ({ altId, altName }) => {
       
       // 🎵 Pour le BRD: Démarrer BardCycle (tout en Lua)
       if (altData?.main_job === 'BRD') {
+        // Désactiver le Follow natif d'abord (BardCycle gère son propre follow)
+        if (followActive) {
+          console.log('[AutoCast] Disabling native Follow for BRD');
+          setFollowActive(false);
+          await sendCommand("//ac dfollow stop");
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
         await sendCommand(`//ac bardcycle start`);
         console.log('[AutoCast] ✅ BardCycle started (Lua tool)');
       } else {

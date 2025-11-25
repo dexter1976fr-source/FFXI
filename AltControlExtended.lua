@@ -19,6 +19,28 @@ local autoengage = nil
 local distancefollow = nil
 local altpetoverlay = nil
 local bardcycle = nil
+local partybuffs = nil  -- Module de récupération des buffs de party
+
+-- Charger PartyBuffs automatiquement au démarrage (module de base)
+local function init_partybuffs()
+    if not partybuffs then
+        local success, module = pcall(require, 'tools/PartyBuffs')
+        if success then
+            partybuffs = module
+            -- IMPORTANT: Appeler init() pour enregistrer l'événement
+            partybuffs.init()
+            print('[AltControl] ✅ PartyBuffs module loaded and initialized')
+            return true
+        else
+            print('[AltControl] ⚠️ PartyBuffs module not loaded:', module)
+            return false
+        end
+    end
+    return true
+end
+
+-- Charger PartyBuffs immédiatement
+init_partybuffs()
 
 function load_tool(tool_name)
     local success, module = pcall(require, 'tools/' .. tool_name)
@@ -137,10 +159,63 @@ windower.register_event('addon command', function(command, ...)
             autoengage.handle_command(table.unpack(args))
         end
         
+    elseif command == 'checkbuffs' then
+        -- Commande de test: //ac checkbuffs [nom]
+        if not partybuffs then
+            print('[AltControl] ❌ PartyBuffs module not loaded')
+            return
+        end
+        
+        -- Forcer la mise à jour du cache
+        partybuffs.refresh()
+        
+        local target_name = select(1, ...)
+        
+        if target_name then
+            -- Afficher les buffs d'un joueur spécifique
+            local buffs = partybuffs.get_buffs(target_name)
+            print('[PartyBuffs] ========================================')
+            print('[PartyBuffs] Buffs for: ' .. target_name)
+            print('[PartyBuffs] Total: ' .. #buffs .. ' buffs')
+            if #buffs > 0 then
+                for i, buff in ipairs(buffs) do
+                    print('[PartyBuffs]   ' .. i .. '. ' .. buff)
+                end
+            else
+                print('[PartyBuffs]   (no buffs or player not found)')
+            end
+            print('[PartyBuffs] ========================================')
+        else
+            -- Afficher les buffs de tous les alts connectés
+            local players = partybuffs.get_all_players()
+            
+            if #players == 0 then
+                print('[PartyBuffs] ❌ No alts connected to server')
+                return
+            end
+            
+            print('[PartyBuffs] ========================================')
+            print('[PartyBuffs] ALL ALTS BUFFS (' .. #players .. ' connected)')
+            print('[PartyBuffs] ========================================')
+            
+            for _, player_name in ipairs(players) do
+                local buffs = partybuffs.get_buffs(player_name)
+                print('[PartyBuffs] ' .. player_name .. ' (' .. #buffs .. ' buffs):')
+                if #buffs > 0 then
+                    for _, buff in ipairs(buffs) do
+                        print('[PartyBuffs]   - ' .. buff)
+                    end
+                else
+                    print('[PartyBuffs]   (no buffs)')
+                end
+                print('[PartyBuffs] ---')
+            end
+            print('[PartyBuffs] ========================================')
+        end
+        
     elseif command == 'bardcycle' then
         -- Commandes BardCycle: //ac bardcycle start/stop
-        local args = {...}
-        local action = args[1] and args[1]:lower()
+        local action = select(1, ...) and select(1, ...):lower()
         
         if not bardcycle then
             print('[AltControl] Loading BardCycle tool...')
@@ -584,28 +659,29 @@ end
 -- 🛡️ Récupère les buffs actifs du joueur (TOUS les buffs via ressources Windower)
 function get_active_buffs()
     local player = windower.ffxi.get_player()
-    if not player then return {} end
+    if not player then return {names = {}, ids = {}} end
     
     local buffs = player.buffs or {}
     local buff_names = {}
+    local buff_ids = {}
     
     -- 🆕 Charger les ressources de buffs Windower
     local res_buffs = require('resources').buffs
     
-    -- Buffs IDs (debug désactivé)
-    
     -- Convertir les IDs de buffs en noms via les ressources Windower
     for _, buff_id in ipairs(buffs) do
-        local buff_data = res_buffs[buff_id]
-        if buff_data and buff_data.en then
-            -- Utiliser le nom anglais du buff
-            table.insert(buff_names, buff_data.en)
+        if buff_id and buff_id > 0 and buff_id ~= 255 then
+            table.insert(buff_ids, buff_id)
+            
+            local buff_data = res_buffs[buff_id]
+            if buff_data and buff_data.en then
+                table.insert(buff_names, buff_data.en)
+            end
         end
     end
     
-    -- Buffs names (debug désactivé)
-    
-    return buff_names
+    -- Retourner les deux: noms ET IDs
+    return {names = buff_names, ids = buff_ids}
 end
 
 -- 🎵 Récupère les buffs de tous les membres du party
@@ -828,7 +904,8 @@ function send_alt_info()
         is_moving = is_moving,
         is_casting = is_casting,
         queue_size = queue_size,  -- 🆕 Taille de la queue AutoCast
-        active_buffs = active_buffs,
+        active_buffs = active_buffs.names,  -- Noms des buffs (pour compatibilité)
+        active_buff_ids = active_buffs.ids,  -- 🆕 IDs des buffs
         ability_recasts = recasts.abilities,
         spell_recasts = recasts.spells
     }

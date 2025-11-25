@@ -26,6 +26,7 @@ flask_thread = None
 servers_running = False
 socketio = None
 last_logged_state = {}  # Pour éviter le spam des logs (altName: { job, weapon, engaged, pet })
+player_buffs = {}   # playerName: [list of buff names] - Buffs de chaque personnage
 
 # ============ CHARGEMENT DES JSON ============
 
@@ -406,6 +407,7 @@ def handle_client(conn, addr):
             "is_moving": info.get("is_moving", False),  # 🆕 État de mouvement
             "is_casting": info.get("is_casting", False),  # 🆕 État de cast
             "active_buffs": active_buffs,  # 🆕 CORRECTION: Liste de buffs parsée
+            "active_buff_ids": info.get("active_buff_ids", []),  # 🆕 IDs des buffs
             "ability_recasts": info.get("ability_recasts", {}),
             "spell_recasts": info.get("spell_recasts", {}),
             "party": party_members,  # 🆕 CORRECTION: Liste de noms
@@ -844,6 +846,36 @@ def autocast_config():
         except Exception as e:
             print(f"[ERROR] autocast_config GET: {e}")
             return jsonify({}), 500
+
+@app.route('/buffs/update', methods=['POST'])
+def update_buffs():
+    """Reçoit les buffs d'un personnage et les stocke"""
+    global player_buffs
+    try:
+        data = request.json
+        player_name = data.get('player_name')
+        buffs = data.get('buffs', [])
+        
+        if player_name:
+            player_buffs[player_name] = buffs
+            print(f"[BUFFS] Updated for {player_name}: {len(buffs)} buffs")
+            return jsonify({"success": True})
+        else:
+            return jsonify({"success": False, "error": "Missing player_name"}), 400
+    except Exception as e:
+        print(f"[ERROR] update_buffs: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/buffs/<player_name>', methods=['GET'])
+def get_buffs(player_name):
+    """Récupère les buffs d'un personnage"""
+    global player_buffs
+    try:
+        buffs = player_buffs.get(player_name, [])
+        return jsonify({"player_name": player_name, "buffs": buffs})
+    except Exception as e:
+        print(f"[ERROR] get_buffs: {e}")
+        return jsonify({"player_name": player_name, "buffs": []}), 500
 
 # --- WebSocket Events ---
 

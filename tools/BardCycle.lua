@@ -1,348 +1,595 @@
-----------------------------------------------------------
--- BARD CYCLE - Module intégré AltControl
--- Version: 1.0.0 (Tool Module)
--- Cycle automatique de songs pour BRD
-----------------------------------------------------------
+--------------------------------------------------------------
+-- BardCycle - Version corrigée (utilise PartyBuffs correctement)
+--------------------------------------------------------------
 
 local BardCycle = {}
 
+-- Charger PartyBuffs de manière protégée
+local PartyBuffs = nil
+local function load_partybuffs()
+    if not PartyBuffs then
+        local success, module = pcall(require, 'tools/PartyBuffs')
+        if success then
+            PartyBuffs = module
+            print('[BardCycle] PartyBuffs loaded')
+        else
+            print('[BardCycle] ERROR loading PartyBuffs: ' .. tostring(module))
+        end
+    end
+    return PartyBuffs ~= nil
+end
+
+local json = require('tools/dkjson')
+
 -- Configuration
 BardCycle.config = {
-    healer_target = nil,
-    melee_target = nil,
+    main_character = "Dexterbrown",
+    healer_target = "Deedeebrown",
     mage_songs = {},
     melee_songs = {},
-    cycle_cooldown = 20,  -- Secondes entre chaque cycle complet
-    song_cast_time = 4,   -- Temps d'attente entre chaque song
+    idle_distance = 0.75,
+    healer_distance = 0.75,
+    melee_distance = 1.75,
+    song_cast_time = 5,
+    buff_verify_delay = 2,  -- Augmenté à 2s pour laisser le temps au serveur
+    cycle_interval = 10,
+    max_follow_distance = 5.0,
 }
 
--- État
 BardCycle.active = false
-BardCycle.state = "idle"
-BardCycle.song_queue = {}
-BardCycle.last_song_cast = 0
-BardCycle.cycle_start_time = 0
-BardCycle.last_state_change = 0
+BardCycle.state = "IDLE"
+BardCycle.phase = nil
+BardCycle.current_song_index = 1
+BardCycle.last_action_time = 0
+BardCycle.last_cycle_check = 0
+BardCycle.moving = false
+BardCycle.current_target = nil
 
--- États possibles
-local STATES = {
-    IDLE = "idle",
-    MOVING_TO_HEALER = "moving_to_healer",
-    CHECKING_MAGE = "checking_mage",
-    CASTING_MAGE = "casting_mage",
-    CHECKING_MELEE = "checking_melee",
-    MOVING_TO_MELEE = "moving_to_melee",
-    CASTING_MELEE = "casting_melee",
-    RETURNING = "returning",
-    COOLDOWN = "cooldown"
-}
-
--- Buff IDs des songs
-local SONG_BUFFS = {
-    ["Ballad"] = 195,
-    ["March"] = 214,
-    ["Minuet"] = 198,
-    ["Madrigal"] = 199,
-    ["Mambo"] = 200,
-    ["Paeon"] = 196,
-    ["Minne"] = 197,
-    ["Etude"] = 424,  -- Base ID, varie selon l'étude
-}
-
--- Fonctions utilitaires
-local function log(message)
-    print('[BardCycle] ' .. message)
+local function log(msg)
+    print("[BardCycle] " .. msg)
 end
 
-local function change_state(new_state)
-    if BardCycle.state ~= new_state then
-        log('State: ' .. BardCycle.state .. ' → ' .. new_state)
-        BardCycle.state = new_state
-        BardCycle.last_state_change = os.clock()
-    end
-end
-
--- Charge la config depuis autocast_config.json
 function BardCycle.load_config()
     local addon_dir = windower.addon_path:match("^(.+[/\\])")
-    local config_path = addon_dir .. "../data/autocast_config.json"
-    
+    local config_path = addon_dir .. "data/autocast_config.json"
     local file = io.open(config_path, "r")
-    if not file then
-        log('⚠️ Config file not found')
-        return false
+    if not file then 
+        log('ERROR: Config file not found') 
+        return false 
     end
     
     local content = file:read("*all")
     file:close()
     
-    -- Parser JSON basique
-    local healer = content:match('"healerTarget"%s*:%s*"([^"]+)"')
-    local melee = content:match('"meleeTarget"%s*:%s*"([^"]+)"')
-    
-    if healer then BardCycle.config.healer_target = healer end
-    if melee then BardCycle.config.melee_target = melee end
-    
-    -- Parser mage songs
-    local mage_songs_str = content:match('"mageSongs"%s*:%s*%[([^%]]+)%]')
-    if mage_songs_str then
-        BardCycle.config.mage_songs = {}
-        for song in mage_songs_str:gmatch('"([^"]+)"') do
-            table.insert(BardCycle.config.mage_songs, song)
-        end
+    local data = json.decode(content)
+    if not data or not data.BRD then 
+        log('ERROR: Invalid config') 
+        return false 
     end
     
-    -- Parser melee songs
-    local melee_songs_str = content:match('"meleeSongs"%s*:%s*%[([^%]]+)%]')
-    if melee_songs_str then
-        BardCycle.config.melee_songs = {}
-        for song in melee_songs_str:gmatch('"([^"]+)"') do
-            table.insert(BardCycle.config.melee_songs, song)
-        end
-    end
+    local brd = data.BRD
+    BardCycle.config.healer_target = brd.healerTarget or BardCycle.config.healer_target
+    BardCycle.config.main_character = brd.meleeTarget or BardCycle.config.main_character
+    BardCycle.config.mage_songs = brd.mageSongs or {}
+    BardCycle.config.melee_songs = brd.meleeSongs or {}
     
-    log('✅ Config loaded')
-    log('Healer: ' .. (BardCycle.config.healer_target or 'none'))
-    log('Melee: ' .. (BardCycle.config.melee_target or 'none'))
-    log('Mage songs: ' .. #BardCycle.config.mage_songs)
-    log('Melee songs: ' .. #BardCycle.config.melee_songs)
+    log('Config loaded')
+    log('  Main: ' .. BardCycle.config.main_character)
+    log('  Healer: ' .. BardCycle.config.healer_target)
+    log('  Mage Songs: ' .. #BardCycle.config.mage_songs)
+    log('  Melee Songs: ' .. #BardCycle.config.melee_songs)
     
     return true
 end
 
--- Vérifie les buffs d'un target
-local function check_buffs(target_name, song_names)
-    local target = windower.ffxi.get_mob_by_name(target_name)
-    if not target or not target.id then
-        return 0
-    end
-    
-    -- Récupérer les buffs du target depuis la party
-    local party = windower.ffxi.get_party()
-    if not party then return 0 end
-    
-    local target_buffs = nil
-    for i = 0, 5 do
-        local member = party['p' .. i]
-        if member and member.name == target_name then
-            target_buffs = member.buffs
-            break
-        end
-    end
-    
-    if not target_buffs then return 0 end
-    
-    -- Compter combien de songs sont actifs
-    local buff_count = 0
-    for _, song_name in ipairs(song_names) do
-        local buff_id = SONG_BUFFS[song_name]
-        if buff_id then
-            for _, buff in ipairs(target_buffs) do
-                if buff == buff_id then
-                    buff_count = buff_count + 1
-                    break
-                end
-            end
-        end
-    end
-    
-    return buff_count
+local function distance_sq(m1, m2)
+    if not m1 or not m2 then return 99999 end
+    local dx = m1.x - m2.x
+    local dy = m1.y - m2.y
+    return dx*dx + dy*dy
 end
 
--- Ajoute un song à la queue
-local function queue_song(song_name, target)
-    table.insert(BardCycle.song_queue, {
-        song = song_name,
-        target = target or '<me>'
-    })
-    log('📋 Queued: ' .. song_name .. ' → ' .. (target or '<me>'))
-end
-
--- Traite la queue de songs
-local function process_song_queue()
-    if #BardCycle.song_queue == 0 then return false end
-    
-    local player = windower.ffxi.get_player()
-    if not player then return false end
-    
-    -- Ne pas caster si déjà en train de caster
-    if player.status == 4 then return false end
-    
-    -- Attendre le cooldown entre songs
-    local now = os.clock()
-    if now - BardCycle.last_song_cast < BardCycle.config.song_cast_time then
-        return false
-    end
-    
-    -- Caster le prochain song
-    local next_song = table.remove(BardCycle.song_queue, 1)
-    windower.send_command('input /ma "' .. next_song.song .. '" ' .. next_song.target)
-    BardCycle.last_song_cast = now
-    log('🎵 Casting: ' .. next_song.song .. ' (queue=' .. #BardCycle.song_queue .. ')')
-    
-    return true
-end
-
--- Détecte si le main character est engagé
 local function is_main_engaged()
-    -- Lire party_roles.json pour savoir qui est le main
-    local addon_dir = windower.addon_path:match("^(.+[/\\])")
-    local file_path = addon_dir .. "../data_json/party_roles.json"
-    
-    local file = io.open(file_path, "r")
-    if not file then return false end
-    
-    local content = file:read("*all")
-    file:close()
-    
-    local main_character = content:match('"main_character"%s*:%s*"([^"]+)"')
-    if not main_character then return false end
-    
-    local main = windower.ffxi.get_mob_by_name(main_character)
-    if not main then return false end
-    
-    return main.status == 1  -- 1 = engaged
+    local mob = windower.ffxi.get_mob_by_name(BardCycle.config.main_character)
+    return mob and mob.status == 1
 end
 
--- Machine à états
-local function update_state_machine()
-    local now = os.clock()
+-- Follow non-bloquant avec distance check
+local function follow_target(target_name, distance)
+    local me = windower.ffxi.get_mob_by_target('me')
+    local target = windower.ffxi.get_mob_by_name(target_name)
     
-    if BardCycle.state == STATES.IDLE then
-        -- Attendre que le main engage
-        if is_main_engaged() then
-            log('🎯 Main engaged! Starting cycle...')
-            change_state(STATES.MOVING_TO_HEALER)
-            BardCycle.cycle_start_time = now
+    if not me or not target then
+        if BardCycle.moving then
+            windower.ffxi.run(false)
+            BardCycle.moving = false
         end
-        
-    elseif BardCycle.state == STATES.MOVING_TO_HEALER then
-        -- Se déplacer vers le healer avec DistanceFollow
-        if distancefollow then
-            distancefollow.start(BardCycle.config.healer_target, false, 10, 18)
-        end
-        change_state(STATES.CHECKING_MAGE)
-        
-    elseif BardCycle.state == STATES.CHECKING_MAGE then
-        -- Vérifier les buffs mage
-        local buff_count = check_buffs(BardCycle.config.healer_target, BardCycle.config.mage_songs)
-        log('Mage buffs: ' .. buff_count .. '/' .. #BardCycle.config.mage_songs)
-        
-        if buff_count < #BardCycle.config.mage_songs then
-            -- Manque des buffs, caster
-            for _, song in ipairs(BardCycle.config.mage_songs) do
-                queue_song(song, BardCycle.config.healer_target)
-            end
-            change_state(STATES.CASTING_MAGE)
-        else
-            -- Buffs OK, passer au melee
-            change_state(STATES.CHECKING_MELEE)
-        end
-        
-    elseif BardCycle.state == STATES.CASTING_MAGE then
-        -- Attendre que la queue soit vide
-        if #BardCycle.song_queue == 0 and now - BardCycle.last_song_cast > BardCycle.config.song_cast_time then
-            change_state(STATES.CHECKING_MELEE)
-        end
-        
-    elseif BardCycle.state == STATES.CHECKING_MELEE then
-        -- Vérifier les buffs melee
-        local buff_count = check_buffs(BardCycle.config.melee_target, BardCycle.config.melee_songs)
-        log('Melee buffs: ' .. buff_count .. '/' .. #BardCycle.config.melee_songs)
-        
-        if buff_count < #BardCycle.config.melee_songs then
-            -- Manque des buffs, se déplacer vers melee
-            change_state(STATES.MOVING_TO_MELEE)
-        else
-            -- Buffs OK, retourner au healer
-            change_state(STATES.RETURNING)
-        end
-        
-    elseif BardCycle.state == STATES.MOVING_TO_MELEE then
-        -- Se déplacer vers le melee
-        if distancefollow then
-            distancefollow.start(BardCycle.config.melee_target, false, 10, 18)
-        end
-        -- Caster les songs melee
-        for _, song in ipairs(BardCycle.config.melee_songs) do
-            queue_song(song, BardCycle.config.melee_target)
-        end
-        change_state(STATES.CASTING_MELEE)
-        
-    elseif BardCycle.state == STATES.CASTING_MELEE then
-        -- Attendre que la queue soit vide
-        if #BardCycle.song_queue == 0 and now - BardCycle.last_song_cast > BardCycle.config.song_cast_time then
-            change_state(STATES.RETURNING)
-        end
-        
-    elseif BardCycle.state == STATES.RETURNING then
-        -- Retourner au healer
-        if distancefollow then
-            distancefollow.start(BardCycle.config.healer_target, false, 10, 18)
-        end
-        change_state(STATES.COOLDOWN)
-        
-    elseif BardCycle.state == STATES.COOLDOWN then
-        -- Attendre le cooldown avant de recommencer
-        if now - BardCycle.cycle_start_time > BardCycle.config.cycle_cooldown then
-            log('⏰ Cooldown finished, restarting cycle')
-            change_state(STATES.CHECKING_MAGE)
-            BardCycle.cycle_start_time = now
+        return 99999
+    end
+    
+    local d2 = distance_sq(me, target)
+    local tolerance = 0.3
+    
+    if d2 > (distance + tolerance)^2 then
+        local len = math.sqrt(d2)
+        windower.ffxi.run((target.x - me.x)/len, (target.y - me.y)/len)
+        BardCycle.moving = true
+    elseif d2 < (distance - tolerance)^2 then
+        local len = math.sqrt(d2)
+        windower.ffxi.run(-(target.x - me.x)/len, -(target.y - me.y)/len)
+        BardCycle.moving = true
+    elseif BardCycle.moving then
+        windower.ffxi.run(false)
+        BardCycle.moving = false
+    end
+    
+    return d2
+end
+
+-- Vérifie si on est assez proche pour caster
+local function is_in_cast_range(target_name, max_distance)
+    local me = windower.ffxi.get_mob_by_target('me')
+    local target = windower.ffxi.get_mob_by_name(target_name)
+    if not me or not target then return false end
+    
+    local d2 = distance_sq(me, target)
+    local max_sq = max_distance * max_distance
+    return d2 <= max_sq
+end
+
+-- Mapping manuel des songs vers les noms de buffs
+local SONG_TO_BUFF = {
+    ["mage's ballad"] = "ballad",
+    ["mage's ballad ii"] = "ballad",
+    ["mage's ballad iii"] = "ballad",
+    ["army's paeon"] = "paeon",
+    ["army's paeon ii"] = "paeon",
+    ["army's paeon iii"] = "paeon",
+    ["army's paeon iv"] = "paeon",
+    ["army's paeon v"] = "paeon",
+    ["valor minuet"] = "minuet",
+    ["valor minuet ii"] = "minuet",
+    ["valor minuet iii"] = "minuet",
+    ["valor minuet iv"] = "minuet",
+    ["valor minuet v"] = "minuet",
+    ["sword madrigal"] = "madrigal",
+    ["blade madrigal"] = "madrigal",
+    ["advancing march"] = "march",
+    ["victory march"] = "march",
+    ["sheepfoe mambo"] = "mambo",
+    ["dragonfoe mambo"] = "mambo",
+    ["fowl aubade"] = "aubade",
+    ["herb pastoral"] = "pastoral",
+    ["shining fantasia"] = "fantasia",
+    ["scop's operetta"] = "operetta",
+    ["puppet's operetta"] = "operetta",
+    ["battlefield elegy"] = "elegy",
+    ["carnage elegy"] = "elegy",
+    ["hunter's prelude"] = "prelude",
+    ["archer's prelude"] = "prelude",
+    ["knight's minne"] = "minne",
+    ["knight's minne ii"] = "minne",
+    ["knight's minne iii"] = "minne",
+    ["knight's minne iv"] = "minne",
+    ["maiden's virelai"] = "virelai",
+    ["raptor mazurka"] = "mazurka",
+    ["chocobo mazurka"] = "mazurka",
+}
+
+-- Vérifier si un song est actif en cherchant son nom de buff
+local function is_song_active(who, song)
+    if not song then return false end
+    
+    -- Trouver le nom du buff via mapping
+    local song_lower = song:lower()
+    local buff_name = SONG_TO_BUFF[song_lower]
+    
+    if not buff_name then
+        log('WARNING: Unknown song: ' .. song)
+        return false
+    end
+    
+    -- Récupérer les buffs via PartyBuffs
+    local buffs = PartyBuffs.get_buffs(who)
+    if not buffs or #buffs == 0 then
+        log('DEBUG: No buffs for ' .. who)
+        return false
+    end
+    
+    -- Chercher le nom du buff (case insensitive)
+    for _, buff in ipairs(buffs) do
+        if buff:lower():find(buff_name, 1, true) then
+            log('✓ "' .. song .. '" active on ' .. who)
+            return true
         end
     end
+    
+    log('✗ "' .. song .. '" missing on ' .. who)
+    return false
 end
 
--- Update (appelé chaque frame par AltControl)
+local function all_songs_active(songs, who)
+    for _, song in ipairs(songs) do
+        if not is_song_active(who, song) then
+            return false, song
+        end
+    end
+    return true, nil
+end
+
+local function can_cast()
+    local p = windower.ffxi.get_player()
+    if not p then return false end
+    
+    -- Statut 4 = casting, 2 = engaged+casting, 3 = dead
+    if p.status == 4 or p.status == 2 or p.status == 3 then
+        return false
+    end
+    
+    if BardCycle.moving then
+        return false
+    end
+    
+    return true
+end
+
+local function target_party_member(target_name)
+    log('Targeting: ' .. target_name)
+    windower.send_command('input /ta ' .. target_name)
+    BardCycle.current_target = target_name
+end
+
+local function cast_song(song)
+    if not can_cast() then
+        log('Cannot cast (casting, dead, or moving)')
+        return false
+    end
+    
+    log('>>> Casting: ' .. song .. ' on ' .. (BardCycle.current_target or 'unknown'))
+    windower.send_command('input /ma "' .. song .. '" <me>')
+    return true
+end
+
 function BardCycle.update()
     if not BardCycle.active then return end
     
-    -- Traiter la queue de songs
-    process_song_queue()
+    local now = os.clock()
+    local engaged = is_main_engaged()
     
-    -- Mettre à jour la machine à états
-    update_state_machine()
+    -- IDLE : Follow main
+    if BardCycle.state == "IDLE" then
+        follow_target(BardCycle.config.main_character, BardCycle.config.idle_distance)
+        if engaged then
+            log('=== COMBAT STARTED ===')
+            BardCycle.state = "CYCLE_MAGE_CHECK"
+            BardCycle.current_song_index = 1
+            BardCycle.phase = "READY"
+            BardCycle.last_cycle_check = 0
+        end
+        return
+    end
+    
+    -- Retour IDLE si combat terminé
+    if not engaged then
+        log('=== COMBAT ENDED ===')
+        BardCycle.state = "IDLE"
+        BardCycle.phase = nil
+        BardCycle.current_song_index = 1
+        BardCycle.current_target = nil
+        if BardCycle.moving then
+            windower.ffxi.run(false)
+            BardCycle.moving = false
+        end
+        return
+    end
+    
+    -- ==========================================
+    -- CYCLE MAGE CHECK
+    -- ==========================================
+    if BardCycle.state == "CYCLE_MAGE_CHECK" then
+        follow_target(BardCycle.config.healer_target, BardCycle.config.healer_distance)
+        
+        if not is_in_cast_range(BardCycle.config.healer_target, BardCycle.config.max_follow_distance) then
+            return  -- Continue à follow
+        end
+        
+        if BardCycle.last_cycle_check > 0 and now - BardCycle.last_cycle_check < BardCycle.config.cycle_interval then return end
+        
+        BardCycle.last_cycle_check = now
+        log('--- Checking Mage Songs on ' .. BardCycle.config.healer_target)
+        
+        -- 🔥 Refresh avant vérification
+        PartyBuffs.refresh()
+        
+        -- Attendre 0.5s que le serveur réponde avant de continuer
+        BardCycle.state = "CYCLE_MAGE_CHECK_WAIT"
+        BardCycle.last_action_time = now
+        return
+    end
+    
+    -- État d'attente après refresh
+    if BardCycle.state == "CYCLE_MAGE_CHECK_WAIT" then
+        follow_target(BardCycle.config.healer_target, BardCycle.config.healer_distance)
+        
+        -- Attendre 0.5s que le serveur réponde
+        if now - BardCycle.last_action_time < 0.5 then
+            return
+        end
+        
+        local buffs = PartyBuffs.get_buffs(BardCycle.config.healer_target)
+        if buffs and type(buffs) == "table" then
+            log('Healer buffs (' .. #buffs .. '): ' .. table.concat(buffs, ', '))
+        else
+            log('Healer buffs: ERROR - invalid data')
+            buffs = {}
+        end
+        
+        local all_active, missing = all_songs_active(BardCycle.config.mage_songs, BardCycle.config.healer_target)
+        
+        if all_active then
+            log('✓ All mage songs active → switching to melee')
+            BardCycle.state = "CYCLE_MELEE_CHECK"
+            BardCycle.current_song_index = 1
+            BardCycle.phase = "READY"
+        else
+            log('✗ Missing: ' .. (missing or 'unknown') .. ' → casting mage songs')
+            target_party_member(BardCycle.config.healer_target)
+            BardCycle.state = "CYCLE_MAGE_CAST"
+            BardCycle.current_song_index = 1
+            BardCycle.phase = "READY"
+            BardCycle.last_action_time = now + 3.5  -- 🔥 Wait 3.5s pour se déplacer avant de caster
+        end
+        return
+    end
+    
+    -- ==========================================
+    -- CYCLE MAGE CAST
+    -- ==========================================
+    if BardCycle.state == "CYCLE_MAGE_CAST" then
+        follow_target(BardCycle.config.healer_target, BardCycle.config.healer_distance)
+        
+        if not is_in_cast_range(BardCycle.config.healer_target, BardCycle.config.max_follow_distance) then
+            return
+        end
+        
+        local song = BardCycle.config.mage_songs[BardCycle.current_song_index]
+        
+        if not song then
+            log('All mage songs cast → verify')
+            BardCycle.state = "CYCLE_MAGE_CHECK"
+            BardCycle.last_cycle_check = now
+            return
+        end
+        
+        if BardCycle.phase == "READY" then
+            if now < BardCycle.last_action_time then
+                return
+            end
+            
+            -- Vérifier si déjà actif AVANT de caster
+            if is_song_active(BardCycle.config.healer_target, song) then
+                log('  ✓ ' .. song .. ' already active')
+                BardCycle.current_song_index = BardCycle.current_song_index + 1
+                return
+            end
+            
+            if cast_song(song) then
+                BardCycle.phase = "CASTING"
+                BardCycle.last_action_time = now
+            end
+            return
+        end
+        
+        if BardCycle.phase == "CASTING" then
+            if now - BardCycle.last_action_time < BardCycle.config.song_cast_time then return end
+            log('  Cast finished, waiting for buff...')
+            BardCycle.phase = "WAITING"
+            BardCycle.last_action_time = now
+            return
+        end
+        
+        if BardCycle.phase == "WAITING" then
+            if now - BardCycle.last_action_time < BardCycle.config.buff_verify_delay then return end
+            BardCycle.phase = "VERIFY"
+            return
+        end
+        
+        if BardCycle.phase == "VERIFY" then
+            PartyBuffs.refresh()
+            -- Attendre que le serveur réponde
+            BardCycle.phase = "VERIFY_WAIT"
+            BardCycle.last_action_time = now
+            return
+        end
+        
+        if BardCycle.phase == "VERIFY_WAIT" then
+            if now - BardCycle.last_action_time < 0.5 then
+                return
+            end
+            
+            local song = BardCycle.config.mage_songs[BardCycle.current_song_index]
+            if is_song_active(BardCycle.config.healer_target, song) then
+                log('  ✓ Confirmed: ' .. song)
+                BardCycle.current_song_index = BardCycle.current_song_index + 1
+                BardCycle.phase = "READY"
+                BardCycle.last_action_time = now + 0.5
+            else
+                log('  ✗ Not detected, retry: ' .. song)
+                BardCycle.phase = "READY"
+                BardCycle.last_action_time = now + 1
+            end
+            return
+        end
+    end
+    
+    -- ==========================================
+    -- CYCLE MELEE CHECK
+    -- ==========================================
+    if BardCycle.state == "CYCLE_MELEE_CHECK" then
+        follow_target(BardCycle.config.main_character, BardCycle.config.melee_distance)
+        
+        if not is_in_cast_range(BardCycle.config.main_character, BardCycle.config.max_follow_distance) then
+            return
+        end
+        
+        log('--- Checking Melee Songs on ' .. BardCycle.config.main_character)
+        PartyBuffs.refresh()
+        BardCycle.state = "CYCLE_MELEE_CHECK_WAIT"
+        BardCycle.last_action_time = now
+        return
+    end
+    
+    if BardCycle.state == "CYCLE_MELEE_CHECK_WAIT" then
+        follow_target(BardCycle.config.main_character, BardCycle.config.melee_distance)
+        
+        if now - BardCycle.last_action_time < 0.5 then
+            return
+        end
+        
+        local buffs = PartyBuffs.get_buffs(BardCycle.config.main_character)
+        if buffs and type(buffs) == "table" then
+            log('Melee buffs (' .. #buffs .. '): ' .. table.concat(buffs, ', '))
+        else
+            log('Melee buffs: ERROR - invalid data')
+            buffs = {}
+        end
+        
+        local all_active, missing = all_songs_active(BardCycle.config.melee_songs, BardCycle.config.main_character)
+        
+        if all_active then
+            log('✓ All melee songs active → back to mage check')
+            BardCycle.state = "CYCLE_MAGE_CHECK"
+            BardCycle.current_song_index = 1
+            BardCycle.phase = "READY"
+        else
+            log('✗ Missing: ' .. (missing or 'unknown') .. ' → casting melee songs')
+            target_party_member(BardCycle.config.main_character)
+            BardCycle.state = "CYCLE_MELEE_CAST"
+            BardCycle.current_song_index = 1
+            BardCycle.phase = "READY"
+            BardCycle.last_action_time = now + 3.5  -- 🔥 Wait 3.5s pour se déplacer avant de caster
+        end
+        return
+    end
+    
+    -- ==========================================
+    -- CYCLE MELEE CAST
+    -- ==========================================
+    if BardCycle.state == "CYCLE_MELEE_CAST" then
+        follow_target(BardCycle.config.main_character, BardCycle.config.melee_distance)
+        
+        if not is_in_cast_range(BardCycle.config.main_character, BardCycle.config.max_follow_distance) then
+            return
+        end
+        
+        local song = BardCycle.config.melee_songs[BardCycle.current_song_index]
+        
+        if not song then
+            log('All melee songs cast → back to mage')
+            BardCycle.state = "CYCLE_MAGE_CHECK"
+            BardCycle.last_cycle_check = now
+            return
+        end
+        
+        if BardCycle.phase == "READY" then
+            if now < BardCycle.last_action_time then
+                return
+            end
+            
+            if is_song_active(BardCycle.config.main_character, song) then
+                log('  ✓ ' .. song .. ' already active')
+                BardCycle.current_song_index = BardCycle.current_song_index + 1
+                return
+            end
+            
+            if cast_song(song) then
+                BardCycle.phase = "CASTING"
+                BardCycle.last_action_time = now
+            end
+            return
+        end
+        
+        if BardCycle.phase == "CASTING" then
+            if now - BardCycle.last_action_time < BardCycle.config.song_cast_time then return end
+            log('  Cast finished, waiting for buff...')
+            BardCycle.phase = "WAITING"
+            BardCycle.last_action_time = now
+            return
+        end
+        
+        if BardCycle.phase == "WAITING" then
+            if now - BardCycle.last_action_time < BardCycle.config.buff_verify_delay then return end
+            BardCycle.phase = "VERIFY"
+            return
+        end
+        
+        if BardCycle.phase == "VERIFY" then
+            PartyBuffs.refresh()
+            BardCycle.phase = "VERIFY_WAIT"
+            BardCycle.last_action_time = now
+            return
+        end
+        
+        if BardCycle.phase == "VERIFY_WAIT" then
+            if now - BardCycle.last_action_time < 0.5 then
+                return
+            end
+            
+            local song = BardCycle.config.melee_songs[BardCycle.current_song_index]
+            if is_song_active(BardCycle.config.main_character, song) then
+                log('  ✓ Confirmed: ' .. song)
+                BardCycle.current_song_index = BardCycle.current_song_index + 1
+                BardCycle.phase = "READY"
+                BardCycle.last_action_time = now + 0.5
+            else
+                log('  ✗ Not detected, retry: ' .. song)
+                BardCycle.phase = "READY"
+                BardCycle.last_action_time = now + 1
+            end
+            return
+        end
+    end
 end
 
--- Démarrer le cycle
 function BardCycle.start()
-    log('🎵 Starting BardCycle...')
+    log('========================================')
+    log('STARTING BARDCYCLE')
+    log('========================================')
     
-    if not BardCycle.load_config() then
-        log('❌ Failed to load config')
+    -- Charger PartyBuffs
+    if not load_partybuffs() then
+        log('ERROR: Cannot load PartyBuffs module')
         return false
     end
     
+    if not BardCycle.load_config() then return false end
+    
     BardCycle.active = true
-    BardCycle.state = STATES.IDLE
-    BardCycle.song_queue = {}
-    BardCycle.cycle_start_time = 0
+    BardCycle.state = "IDLE"
+    BardCycle.phase = nil
+    BardCycle.current_song_index = 1
+    BardCycle.last_action_time = 0
+    BardCycle.last_cycle_check = 0
+    BardCycle.current_target = nil
     
-    log('✅ BardCycle started')
+    log('BardCycle started! Following ' .. BardCycle.config.main_character)
     return true
 end
 
--- Arrêter le cycle
 function BardCycle.stop()
+    log('Stopping BardCycle...')
     BardCycle.active = false
-    BardCycle.song_queue = {}
-    
-    -- Arrêter DistanceFollow
-    if distancefollow then
-        distancefollow.stop()
+    BardCycle.current_target = nil
+    if BardCycle.moving then
+        windower.ffxi.run(false)
+        BardCycle.moving = false
     end
-    
-    log('🛑 BardCycle stopped')
+    log('BardCycle stopped')
 end
 
--- Initialize
 function BardCycle.init()
-    log('Tool initialized')
+    log('BardCycle module loaded')
     return true
-end
-
--- Cleanup
-function BardCycle.unload()
-    BardCycle.stop()
 end
 
 return BardCycle
